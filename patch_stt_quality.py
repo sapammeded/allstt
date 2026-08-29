@@ -37,6 +37,90 @@ old_filename = "const filename = `Laporan_Patroli_${safe(petugas)}_${safe(tangga
 new_filename = """const filenameDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(tanggal)\n        ? tanggal.split('-').reverse().join('-')\n        : safe(tanggal || new Date().toISOString().slice(0,10));\n      const filenameShift = safe((document.getElementById('shift')?.value || shift || '').trim()).replace(/_+/g,'_') || 'SHIFT';\n      const filename = `${safe(petugas || 'Petugas')}_${filenameDate}_${filenameShift}.pdf`;"""
 s = s.replace(old_filename, new_filename)
 
+# Password-protected officer photo gallery upload.
+# The existing camera capture button remains unchanged. Gallery access is session-only
+# and reuses the existing getGalleryPassword() password system.
+officer_html_marker = '<input id="officerPhotoInput" type="file" accept="image/*" capture="user" style="display:none">'
+officer_html_add = '''<input id="officerPhotoInput" type="file" accept="image/*" capture="user" style="display:none">
+        <input id="officerGalleryInput" type="file" accept="image/*" multiple style="display:none">
+        <div style="width:100%;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
+          <div style="font-weight:800;margin-bottom:8px"><i class="fas fa-lock"></i> UPLOAD FOTO WAJAH DARI GALERI</div>
+          <div class="small" style="margin-bottom:10px">Fitur ini hanya dapat digunakan setelah password galeri dimasukkan dengan benar.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="officerGalleryPassword" type="password" placeholder="Masukkan password..." style="flex:1;min-width:180px">
+            <button id="unlockOfficerGalleryBtn" type="button" class="btn btn-primary"><i class="fas fa-unlock"></i> BUKA</button>
+          </div>
+          <div id="officerGalleryAccess" style="display:none;margin-top:10px">
+            <div class="quality-notice"><i class="fas fa-check-circle"></i> Akses galeri foto wajah aktif.</div>
+            <button id="uploadOfficerGalleryBtn" type="button" class="btn btn-info" style="width:100%;margin-top:10px"><i class="fas fa-images"></i> UPLOAD FOTO WAJAH DARI GALERI</button>
+          </div>
+        </div>'''
+if 'id="officerGalleryInput"' not in s:
+    if officer_html_marker not in s:
+        raise SystemExit('Officer photo input marker not found')
+    s = s.replace(officer_html_marker, officer_html_add, 1)
+
+officer_js_marker = '''  document.getElementById('takeOfficerPhotoBtn')?.addEventListener('click',()=>{
+    const input = document.getElementById('officerPhotoInput');
+    if(input) input.click();
+  });'''
+officer_js_add = '''  document.getElementById('takeOfficerPhotoBtn')?.addEventListener('click',()=>{
+    const input = document.getElementById('officerPhotoInput');
+    if(input) input.click();
+  });
+
+  // Password-protected officer photo gallery upload.
+  let officerGalleryAccessGranted = false;
+  document.getElementById('unlockOfficerGalleryBtn')?.addEventListener('click', ()=>{
+    const pw = document.getElementById('officerGalleryPassword')?.value || '';
+    if (pw === getGalleryPassword()) {
+      officerGalleryAccessGranted = true;
+      const access = document.getElementById('officerGalleryAccess');
+      const input = document.getElementById('officerGalleryPassword');
+      if (access) access.style.display = 'block';
+      if (input) input.value = '';
+      alert('✅ Akses upload foto wajah dari galeri dibuka.');
+    } else {
+      officerGalleryAccessGranted = false;
+      alert('❌ Password salah!');
+    }
+  });
+
+  document.getElementById('uploadOfficerGalleryBtn')?.addEventListener('click', ()=>{
+    if (!officerGalleryAccessGranted) {
+      alert('🔒 Masukkan password terlebih dahulu.');
+      return;
+    }
+    document.getElementById('officerGalleryInput')?.click();
+  });
+
+  document.getElementById('officerGalleryInput')?.addEventListener('change', (e)=>{
+    if (!officerGalleryAccessGranted) {
+      e.target.value = '';
+      alert('🔒 Akses galeri belum dibuka.');
+      return;
+    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reuse the existing officer-photo processing pipeline so preview/PDF behavior is unchanged.
+    const cameraInput = document.getElementById('officerPhotoInput');
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      cameraInput.files = dt.files;
+      cameraInput.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (err) {
+      alert('❌ Foto dari galeri gagal diproses.');
+      console.error(err);
+    } finally {
+      e.target.value = '';
+    }
+  });'''
+if 'id="uploadOfficerGalleryBtn"' not in s:
+    if officer_js_marker not in s:
+        raise SystemExit('Officer camera handler marker not found')
+    s = s.replace(officer_js_marker, officer_js_add, 1)
+
 # Robust autosave/recovery. Additive: preserves existing patrolData + IndexedDB photo storage.
 autosave_patch = r'''
 <!-- ALLSTT ROBUST AUTOSAVE V2 -->
@@ -94,4 +178,4 @@ if 'id="ALLSTT-robust-autosave"' not in s:
     s = s.replace('</body>', autosave_patch + '\n</body>', 1)
 
 p.write_text(s, encoding='utf-8')
-print('STT patch applied: letterhead, filename, default description, robust autosave.')
+print('STT patch applied: letterhead, filename, default description, protected officer gallery upload, robust autosave.')
