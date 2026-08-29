@@ -17,7 +17,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-
       - name: Patch STT gallery and company settings
         shell: python
         run: |
@@ -25,36 +24,24 @@ jobs:
           import re
           p=Path('stt.html')
           s=p.read_text(encoding='utf-8')
-
-          # Remove only the broken final face/gallery override which caused
-          # the repeated password dialog. Keep the original STT features.
-          s, removed = re.subn(r'<script id="ALLSTT-STT-FACE-GALLERY-FINAL">.*?</script>\s*','',s,flags=re.S)
-
-          # Add a separate no-password company identity save. The original
-          # saveCompanyHeaderBtn remains the password-protected save action.
+          # Remove every known legacy face/gallery override so only the V4 behavior remains.
+          s=re.sub(r'<script id="ALLSTT-STT-FACE-GALLERY-FINAL">.*?</script>\s*','',s,flags=re.S)
+          s=re.sub(r'<script id="ALLSTT-STT-FACE-GALLERY-V3">.*?</script>\s*','',s,flags=re.S)
           marker='<button id="saveCompanyHeaderBtn" type="button" class="btn btn-primary"'
           if 'saveCompanyHeaderNoPasswordBtn' not in s and marker in s:
               extra='''<button id="saveCompanyHeaderNoPasswordBtn" type="button" class="btn btn-success" style="margin-top:12px;width:100%">\n          <i class="fas fa-floppy-disk"></i> SIMPAN IDENTITAS TANPA PASSWORD\n        </button>\n\n        '''
               s=s.replace(marker,extra+marker,1)
-
           patch=r'''<script id="ALLSTT-STT-V4-FIXES">
 (function(){
 'use strict';
 function ready(fn){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fn,{once:true});else fn();}
 ready(function(){
-  // FOTO WAJAH: one tap only opens the camera. This removes the old
-  // accidental double-tap gallery/password behavior.
   const face=document.getElementById('takeOfficerPhotoBtn');
   const faceInput=document.getElementById('officerPhotoInput');
   if(face && faceInput && !face.dataset.v4Fixed){
     const clean=face.cloneNode(true); clean.dataset.v4Fixed='1'; face.replaceWith(clean);
-    clean.addEventListener('click',function(e){
-      e.preventDefault(); e.stopPropagation(); faceInput.value=''; faceInput.setAttribute('accept','image/*'); faceInput.setAttribute('capture','user'); faceInput.click();
-    });
+    clean.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();faceInput.value='';faceInput.setAttribute('accept','image/*');faceInput.setAttribute('capture','user');faceInput.click();});
   }
-
-  // AREA GALLERY: password is checked once, then the picker opens. Selecting
-  // photos never invokes the password prompt again.
   const unlock=document.getElementById('unlockCameraGalleryBtn');
   const pw=document.getElementById('cameraGalleryPassword');
   const access=document.getElementById('cameraGalleryAccess');
@@ -62,62 +49,30 @@ ready(function(){
   const gallery=document.getElementById('galleryCameraInput');
   let unlocked=false;
   if(unlock && pw && access){
-    const clean=unlock.cloneNode(true); clean.dataset.v4Gallery='1'; unlock.replaceWith(clean);
-    clean.addEventListener('click',function(e){
-      e.preventDefault(); e.stopPropagation();
-      const entered=String(pw.value||'');
-      const expected='mbahpritampan';
-      if(entered===expected){
-        unlocked=true; window.galleryAccessGranted=true; window.allsttGalleryUnlocked=true;
-        access.style.display='block'; pw.value='';
-        alert('✅ Password benar. Pilih foto dari galeri.');
-      }else{
-        unlocked=false; window.galleryAccessGranted=false; window.allsttGalleryUnlocked=false;
-        access.style.display='none'; alert('❌ Password salah!');
-      }
-    });
+    const clean=unlock.cloneNode(true);clean.dataset.v4Gallery='1';unlock.replaceWith(clean);
+    clean.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(String(pw.value||'')==='mbahpritampan'){unlocked=true;window.galleryAccessGranted=true;window.allsttGalleryUnlocked=true;access.style.display='block';pw.value='';alert('✅ Password benar. Pilih foto dari galeri.');}else{unlocked=false;window.galleryAccessGranted=false;window.allsttGalleryUnlocked=false;access.style.display='none';alert('❌ Password salah!');}});
   }
   if(upload){
-    const clean=upload.cloneNode(true); clean.dataset.v4Gallery='1'; upload.replaceWith(clean);
-    clean.addEventListener('click',function(e){
-      e.preventDefault(); e.stopPropagation();
-      if(!unlocked && !window.galleryAccessGranted && !window.allsttGalleryUnlocked){alert('🔒 Masukkan password terlebih dahulu.');return;}
-      if(gallery){gallery.value='';gallery.click();}
-    });
+    const clean=upload.cloneNode(true);clean.dataset.v4Gallery='1';upload.replaceWith(clean);
+    clean.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(!unlocked&&!window.galleryAccessGranted&&!window.allsttGalleryUnlocked){alert('🔒 Masukkan password terlebih dahulu.');return;}if(gallery){gallery.value='';gallery.click();}});
   }
-
-  // COMPANY IDENTITY: save without password is separate from the existing
-  // password-protected save. Both persist name + address locally.
   const free=document.getElementById('saveCompanyHeaderNoPasswordBtn');
-  if(free && !free.dataset.v4Settings){
+  if(free&&!free.dataset.v4Settings){
     free.dataset.v4Settings='1';
-    free.addEventListener('click',function(e){
-      e.preventDefault();e.stopPropagation();
-      const name=(document.getElementById('companyName')?.value||'').trim();
-      const address=(document.getElementById('companyAddress')?.value||'').trim();
-      localStorage.setItem('patrol_company_name_v1',name);
-      localStorage.setItem('patrol_company_address_v1',address);
-      alert('✅ Nama dan alamat perusahaan tersimpan tanpa password.');
-    });
+    free.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();const name=(document.getElementById('companyName')?.value||'').trim();const address=(document.getElementById('companyAddress')?.value||'').trim();localStorage.setItem('patrol_company_name_v1',name);localStorage.setItem('patrol_company_address_v1',address);alert('✅ Nama dan alamat perusahaan tersimpan tanpa password.');});
   }
 });
 })();
 </script>
 '''
-          if 'ALLSTT-STT-V4-FIXES' not in s:
-              s=s.replace('</body>',patch+'</body>',1)
+          if 'ALLSTT-STT-V4-FIXES' not in s:s=s.replace('</body>',patch+'</body>',1)
           p.write_text(s,encoding='utf-8')
-          print('Removed old override:',removed)
-
       - name: Prepare HTML assets
         shell: python
         run: |
           from pathlib import Path
-          assets=Path('app/src/main/assets')
-          assets.mkdir(parents=True,exist_ok=True)
-          for name in ('stt.html','hvss2.html','vacs.html','launcher.html'):
-              (assets/name).write_text(Path(name).read_text(encoding='utf-8'),encoding='utf-8')
-
+          a=Path('app/src/main/assets');a.mkdir(parents=True,exist_ok=True)
+          for n in ('stt.html','hvss2.html','vacs.html','launcher.html'):(a/n).write_text(Path(n).read_text(encoding='utf-8'),encoding='utf-8')
       - name: Build installable APK
         run: gradle --no-daemon :app:assembleDebug
       - name: Verify APK
