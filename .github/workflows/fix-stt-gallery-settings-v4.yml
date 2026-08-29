@@ -1,102 +1,11 @@
 name: Fix STT gallery and company settings
-
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   patch-and-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Patch STT without removing existing features
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          p = Path('stt.html')
-          s = p.read_text(encoding='utf-8')
-
-          # Remove only the broken final face/gallery override. The original
-          # STT camera, gallery, IndexedDB, PDF and patrol features remain.
-          s2, n = re.subn(
-              r'<script id="ALLSTT-STT-FACE-GALLERY-FINAL">.*?</script>\s*',
-              '', s, flags=re.S
-          )
-
-          # Add a second company-settings save mode, leaving the existing
-          # password-protected save button intact.
-          marker = '<button id="saveCompanyHeaderBtn" type="button" class="btn btn-primary"'
-          if 'saveCompanyHeaderNoPasswordBtn' not in s2 and marker in s2:
-              insert = '''<button id="saveCompanyHeaderNoPasswordBtn" type="button" class="btn btn-success" style="margin-top:12px;width:100%">\n          <i class="fas fa-floppy-disk"></i> SIMPAN IDENTITAS TANPA PASSWORD\n        </button>\n\n        '''
-              s2 = s2.replace(marker, insert + marker, 1)
-
-          # Make the protected action explicit without changing its behavior.
-          s2 = s2.replace(
-              '<i class="fas fa-save"></i> SIMPAN IDENTITAS & KOP SURAT',
-              '<i class="fas fa-lock"></i> SIMPAN IDENTITAS & KOP SURAT (PASSWORD)',
-              1
-          )
-
-          patch = r'''\n<script id="ALLSTT-STT-V4-FIXES">\n(function(){\n  'use strict';\n\n  function ready(fn){\n    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true});\n    else fn();\n  }\n\n  ready(function(){\n    // ------------------------------------------------------------\n    // 1. FACE PHOTO: one tap = camera only.\n    // The previous double-tap/password override caused accidental\n    // gallery prompts and repeated password dialogs on Android.\n    // ------------------------------------------------------------\n    const face=document.getElementById('takeOfficerPhotoBtn');\n    const faceInput=document.getElementById('officerPhotoInput');\n    if(face && faceInput && !face.dataset.v4Fixed){\n      const clean=face.cloneNode(true);\n      clean.dataset.v4Fixed='1';\n      face.replaceWith(clean);\n      clean.addEventListener('click',function(e){\n        e.preventDefault();\n        e.stopPropagation();\n        faceInput.value='';\n        faceInput.setAttribute('accept','image/*');\n        faceInput.setAttribute('capture','user');\n        faceInput.click();\n      });\n    }\n\n    // ------------------------------------------------------------\n    // 2. AREA GALLERY: password is checked exactly once, then the\n    // selected files are processed by the existing multi-photo\n    // pipeline. Never ask for the password again after file pick.\n    // ------------------------------------------------------------\n    const unlock=document.getElementById('unlockCameraGalleryBtn');\n    const pw=document.getElementById('cameraGalleryPassword');\n    const access=document.getElementById('cameraGalleryAccess');\n    const upload=document.getElementById('uploadGalleryBtn');\n    const gallery=document.getElementById('galleryCameraInput');\n    let v4Unlocked=false;\n\n    if(unlock && pw && access){\n      const replacement=unlock.cloneNode(true);\n      replacement.dataset.v4Gallery='1';\n      unlock.replaceWith(replacement);\n      replacement.addEventListener('click',function(e){\n        e.preventDefault();\n        e.stopPropagation();\n        const entered=String(pw.value||'');\n        let expected='';\n        try{ expected=(typeof getGalleryPassword==='function') ? getGalleryPassword() : 'mbahpritampan'; }catch(_){ expected='mbahpritampan'; }\n        if(entered===expected){\n          v4Unlocked=true;\n          window.galleryAccessGranted=true;\n          if(access) access.style.display='block';\n          pw.value='';\n          alert('✅ Akses upload galeri dibuka. Pilih foto.');\n        }else{\n          v4Unlocked=false;\n          window.galleryAccessGranted=false;\n          if(access) access.style.display='none';\n          alert('❌ Password salah!');\n        }\n      });\n    }\n\n    if(upload && !upload.dataset.v4Gallery){\n      const replacement=upload.cloneNode(true);\n      replacement.dataset.v4Gallery='1';\n      upload.replaceWith(replacement);\n      replacement.addEventListener('click',function(e){\n        e.preventDefault();\n        e.stopPropagation();\n        if(!v4Unlocked && !window.galleryAccessGranted && !window.allsttGalleryUnlocked){\n          alert('🔒 Masukkan password terlebih dahulu.');\n          return;\n        }\n        if(typeof currentTargetArea!=='undefined' && !currentTargetArea){\n          alert('⚠️ Pilih area terlebih dahulu!');\n          return;\n        }\n        if(gallery){ gallery.value=''; gallery.click(); }\n      });\n    }\n\n    // If the existing handler is present, allow it to process the selected\n    // files; it already uses the correct multi-photo IndexedDB pipeline.\n    // This guard only prevents a second password prompt.\n    if(gallery && !gallery.dataset.v4Gallery){\n      gallery.dataset.v4Gallery='1';\n      gallery.addEventListener('change',function(){\n        if(!v4Unlocked && !window.galleryAccessGranted && !window.allsttGalleryUnlocked){\n          gallery.value='';\n        }\n      },true);\n    }\n\n    // ------------------------------------------------------------\n    // 3. COMPANY SETTINGS: new no-password save. Existing\n    // password-protected save remains untouched.\n    // ------------------------------------------------------------\n    const freeSave=document.getElementById('saveCompanyHeaderNoPasswordBtn');\n    if(freeSave && !freeSave.dataset.v4Settings){\n      freeSave.dataset.v4Settings='1';\n      freeSave.addEventListener('click',function(e){\n        e.preventDefault();\n        e.stopPropagation();\n        const name=(document.getElementById('companyName')?.value||'').trim();\n        const email=(document.getElementById('companyEmail')?.value||'').trim();\n        const phone=(document.getElementById('companyPhone')?.value||'').trim();\n        const address=(document.getElementById('companyAddress')?.value||'').trim();\n        try{\n          localStorage.setItem('patrol_company_name_v1',name);\n          localStorage.setItem('patrol_company_email_v1',email);\n          localStorage.setItem('patrol_company_phone_v1',phone);\n          localStorage.setItem('patrol_company_address_v1',address);\n          if(typeof companyName!=='undefined') companyName=name;\n          if(typeof companyEmail!=='undefined') companyEmail=email;\n          if(typeof companyPhone!=='undefined') companyPhone=phone;\n          if(typeof companyAddress!=='undefined') companyAddress=address;\n          alert('✅ Nama, alamat, dan identitas perusahaan tersimpan tanpa password.');\n        }catch(err){\n          alert('❌ Gagal menyimpan identitas perusahaan: '+(err?.message||err));\n        }\n      });\n    }\n  });\n})();\n</script>\n'''
-
-          # Put the fix at the very end so it can safely override only the\n          # affected controls after all original STT code has initialized.\n          if 'ALLSTT-STT-V4-FIXES' not in s2:
-              s2 = s2.replace('</body>', patch + '</body>', 1)
-
-          p.write_text(s2, encoding='utf-8')
-          print('Removed old override:', n)
-          print('STT V4 fixes installed.')
-
-      - name: Commit patched STT
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add stt.html
-          if git diff --cached --quiet; then
-            echo "No source changes needed."
-          else
-            git commit -m "fix STT gallery upload and company save modes"
-            git push
-          fi
-
-      - name: Prepare Android assets
-        shell: python
-        run: |
-          from pathlib import Path
-          assets=Path('app/src/main/assets')
-          assets.mkdir(parents=True,exist_ok=True)
-          for name in ('stt.html','hvss2.html','vacs.html','launcher.html'):
-            (assets/name).write_text(Path(name).read_text(encoding='utf-8'),encoding='utf-8')
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-
-      - name: Build installable debug APK
-        run: gradle --no-daemon :app:assembleDebug
-
-      - name: Verify APK
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ALLSTT-STT-V4-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+      - uses: actions/checkout@v4
+      - run: echo "Manual-only legacy workflow"
