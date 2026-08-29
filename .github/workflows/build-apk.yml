@@ -30,7 +30,68 @@ jobs:
           from pathlib import Path
           p = Path('stt.html')
           s = p.read_text(encoding='utf-8')
+
+          # Android/WebView camera: let Android choose the available camera provider.
           s = s.replace('accept="image/*" capture="environment"', 'accept="image/*"')
+          s = s.replace('accept="image/*" capture="user"', 'accept="image/*"')
+
+          # file:// WebView cannot reliably fetch(data:...) in every Android WebView.
+          # Convert Data URLs directly to Blob so IndexedDB storage works offline.
+          storage_patch = r'''
+          // ALLSTT WebView storage compatibility patch
+          // Converts data:image/... URLs without fetch(), which can fail on file://.
+          function allsttDataUrlToBlob(dataUrl){
+            if(typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) throw new Error('Invalid image data.');
+            const comma = dataUrl.indexOf(',');
+            if(comma < 0) throw new Error('Invalid image data URL.');
+            const header = dataUrl.slice(5, comma);
+            const body = dataUrl.slice(comma + 1);
+            const parts = header.split(';');
+            const mime = parts[0] || 'application/octet-stream';
+            let bytes;
+            if(parts.includes('base64')){
+              const binary = atob(body);
+              bytes = new Uint8Array(binary.length);
+              for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+            }else{
+              const decoded = decodeURIComponent(body);
+              bytes = new TextEncoder().encode(decoded);
+            }
+            return new Blob([bytes], {type:mime});
+          }
+
+          // Store one compressed image directly in IndexedDB.
+          async function allsttStorePhotoBlob(dataUrl, name){
+            if(!db) return null;
+            const blob = allsttDataUrlToBlob(dataUrl);
+            const key='b_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+            const ok = await idbPut(STORE_BLOBS,key,blob);
+            if(!ok) throw new Error('IndexedDB gagal menyimpan foto.');
+            await idbPut(STORE_META,key,{name:name||'patrol-photo.jpg',ts:new Date().toISOString(),type:blob.type,size:blob.size});
+            return key;
+          }
+          '''
+
+          marker = '  async function addPhotoToArea(dataUrl, targetAreaKey) {'
+          if marker in s and 'function allsttDataUrlToBlob' not in s:
+              s = s.replace(marker, storage_patch + '\n' + marker, 1)
+
+          # Replace the camera-photo storage path.
+          old = "const blob=await (await fetch(dataUrl)).blob();\n        const key='b_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);\n        await idbPut(STORE_BLOBS,key,blob);\n        await idbPut(STORE_META,key,{name:'patrol-photo.jpg',ts:new Date().toISOString(),type:blob.type});\n        area.photos.push({ref:key});"
+          new = "const key=await allsttStorePhotoBlob(dataUrl,'patrol-photo.jpg');\n        area.photos.push({ref:key});"
+          s = s.replace(old, new, 1)
+
+          # Replace the multi-upload storage path. Keep processing sequential to avoid
+          # memory spikes when the user selects many photos.
+          old2 = "const blob = await (await fetch(comp)).blob();\n                    key = 'b_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);\n                    await idbPut(STORE_BLOBS, key, blob);\n                    await idbPut(STORE_META, key, { name: f.name, ts: new Date().toISOString() });\n                    patrolData[k].photos.push({ ref:key });"
+          new2 = "key = await allsttStorePhotoBlob(comp, f.name);\n                    patrolData[k].photos.push({ ref:key });"
+          s = s.replace(old2, new2, 1)
+
+          # Remove the hard 50-thumbnail limit; keep rendering lazy-ish by using the
+          # existing grid and let the actual stored blobs remain unlimited.
+          s = s.replace('const visiblePhotos = photos.slice(0, 50); // Render maksimal 50 foto sekaligus', 'const visiblePhotos = photos; // Render all stored photos; blobs remain outside localStorage')
+          s = s.replace('    // Show "load more" indicator jika ada banyak foto\n    if (photos.length > visiblePhotos.length) {', '    // No artificial photo-count limit.')
+
           patch = Path('android-download-bridge.js').read_text(encoding='utf-8')
           if 'ALLSTTAndroidDownload' not in s:
               s = s.replace('</body>', '<script>\n' + patch + '\n</script>\n</body>')
