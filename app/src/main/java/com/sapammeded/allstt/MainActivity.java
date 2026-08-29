@@ -12,8 +12,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
+import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -22,6 +24,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
 import android.widget.Toast;
+import java.io.OutputStream;
 
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER = 4101;
@@ -48,23 +51,8 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         CookieManager.getInstance().setAcceptCookie(true);
+        webView.addJavascriptInterface(new DownloadBridge(), "Android");
         webView.setWebViewClient(new WebViewClient());
-        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
-            try {
-                String fileName = "ALLSTT_" + System.currentTimeMillis();
-                String ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
-                if (ext != null && !ext.isEmpty()) fileName += "." + ext;
-                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                request.setMimeType(mimeType);
-                request.addRequestHeader("User-Agent", userAgent);
-                request.setTitle(fileName);
-                request.setDescription("Download dari ALLSTT");
-                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
-                ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
-                Toast.makeText(this, "Download dimulai", Toast.LENGTH_SHORT).show();
-            } catch (Exception e) { Toast.makeText(this, "Download gagal", Toast.LENGTH_LONG).show(); }
-        });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
@@ -117,6 +105,31 @@ public class MainActivity extends Activity {
         fileCallback.onReceiveValue(results);
         fileCallback = null;
         pendingCameraUri = null;
+    }
+
+    private class DownloadBridge {
+        @JavascriptInterface public void saveBase64(String dataUrl, String filename) {
+            try {
+                int comma = dataUrl.indexOf(',');
+                String meta = comma > 0 ? dataUrl.substring(0, comma) : "data:application/octet-stream;base64";
+                String body = comma > 0 ? dataUrl.substring(comma + 1) : dataUrl;
+                String mime = "application/octet-stream";
+                int colon = meta.indexOf(':'); int semi = meta.indexOf(';');
+                if (colon >= 0 && semi > colon) mime = meta.substring(colon + 1, semi);
+                byte[] bytes = Base64.decode(body, Base64.DEFAULT);
+                String safe = (filename == null || filename.isEmpty()) ? "ALLSTT_Download" : filename.replaceAll("[^A-Za-z0-9._-]", "_");
+                if (Build.VERSION.SDK_INT >= 29) {
+                    android.content.ContentValues v = new android.content.ContentValues();
+                    v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
+                    v.put(MediaStore.Downloads.MIME_TYPE, mime);
+                    v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                    Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (uri == null) throw new Exception("Tidak dapat membuat file");
+                    try (OutputStream out = getContentResolver().openOutputStream(uri)) { out.write(bytes); }
+                }
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "File tersimpan di Download", Toast.LENGTH_SHORT).show());
+            } catch (Exception e) { runOnUiThread(() -> Toast.makeText(MainActivity.this, "Gagal menyimpan file", Toast.LENGTH_LONG).show()); }
+        }
     }
 
     @Override public void onBackPressed() { if (webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
