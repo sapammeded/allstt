@@ -9,42 +9,47 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message, 'fix: restrict camera chooser') }}
+    if: ${{ !contains(github.event.head_commit.message, 'fix: restrict camera chooser and keep gallery password-gated') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Patch camera inputs and Android chooser
-        shell: python
+      - name: Patch source
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           import re
 
-          html = Path('stt.html').read_text(encoding='utf-8')
+          p = Path('stt.html')
+          html = p.read_text(encoding='utf-8')
 
-          def add_capture(match, value):
+          def camera_input(match, facing):
               tag = match.group(0)
               tag = re.sub(r'\s+capture\s*=\s*["\'][^"\']*["\']', '', tag, flags=re.I)
               tag = re.sub(r'\s+capture\b', '', tag, flags=re.I)
-              return tag[:-1] + f' capture="{value}">'
+              return tag[:-1] + f' capture="{facing}">'
 
-          # Camera buttons must enter the native camera-only chooser.
-          html = re.sub(r'<input\b(?=[^>]*\bid\s*=\s*["\']nativeCameraInput["\'])[^>]*>', lambda m: add_capture(m, 'environment'), html, flags=re.I)
-          html = re.sub(r'<input\b(?=[^>]*\bid\s*=\s*["\']nativeFaceInput["\'])[^>]*>', lambda m: add_capture(m, 'user'), html, flags=re.I)
-          Path('stt.html').write_text(html, encoding='utf-8')
+          html, n1 = re.subn(r'<input\b(?=[^>]*\bid\s*=\s*["\']nativeCameraInput["\'])[^>]*>', lambda m: camera_input(m, 'environment'), html, flags=re.I)
+          html, n2 = re.subn(r'<input\b(?=[^>]*\bid\s*=\s*["\']nativeFaceInput["\'])[^>]*>', lambda m: camera_input(m, 'user'), html, flags=re.I)
+          p.write_text(html, encoding='utf-8')
+          print('camera inputs patched:', n1, n2)
 
           p = Path('app/src/main/java/com/sapammeded/allstt/MainActivity.java')
           java = p.read_text(encoding='utf-8')
           marker = 'if (params.isCaptureEnabled()) {'
           if marker not in java:
               needle = '                fileCallback = callback;\n                Intent picker;'
-              insert = '''                fileCallback = callback;\n\n                // Camera inputs are intentionally camera-only: this prevents the\n                // Android chooser from exposing Gallery when the user taps KAMERA HP.\n                // Gallery/file inputs continue through the normal picker and remain\n                // controlled by the HTML password gate.\n                if (params.isCaptureEnabled()) {\n                    Intent cameraOnly = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);\n                    if (cameraOnly.resolveActivity(getPackageManager()) == null) {\n                        fileCallback.onReceiveValue(null);\n                        fileCallback = null;\n                        Toast.makeText(MainActivity.this, \"Tidak ada aplikasi kamera\", Toast.LENGTH_SHORT).show();\n                        return true;\n                    }\n                    pendingCameraUri = createCameraUri();\n                    if (pendingCameraUri != null) cameraOnly.putExtra(MediaStore.EXTRA_OUTPUT, pendingCameraUri);\n                    cameraOnly.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);\n                    if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)\n                        requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);\n                    try {\n                        Intent chooser = Intent.createChooser(cameraOnly, \"Pilih aplikasi kamera\");\n                        startActivityForResult(chooser, FILE_CHOOSER);\n                    } catch (ActivityNotFoundException e) {\n                        if (pendingCameraUri != null) { try { getContentResolver().delete(pendingCameraUri, null, null); } catch (Exception ignored) {} }\n                        pendingCameraUri = null;\n                        fileCallback.onReceiveValue(null);\n                        fileCallback = null;\n                        Toast.makeText(MainActivity.this, \"Tidak ada aplikasi kamera\", Toast.LENGTH_SHORT).show();\n                    }\n                    return true;\n                }\n\n                Intent picker;'''
+              insert = '''                fileCallback = callback;\n\n                // Camera inputs use a camera-only chooser. Gallery/file inputs keep\n                // the normal picker and remain protected by the HTML password gate.\n                if (params.isCaptureEnabled()) {\n                    Intent cameraOnly = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);\n                    if (cameraOnly.resolveActivity(getPackageManager()) == null) {\n                        fileCallback.onReceiveValue(null);\n                        fileCallback = null;\n                        Toast.makeText(MainActivity.this, "Tidak ada aplikasi kamera", Toast.LENGTH_SHORT).show();\n                        return true;\n                    }\n                    pendingCameraUri = createCameraUri();\n                    if (pendingCameraUri != null) cameraOnly.putExtra(MediaStore.EXTRA_OUTPUT, pendingCameraUri);\n                    cameraOnly.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);\n                    if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)\n                        requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);\n                    try {\n                        startActivityForResult(Intent.createChooser(cameraOnly, "Pilih aplikasi kamera"), FILE_CHOOSER);\n                    } catch (ActivityNotFoundException e) {\n                        if (pendingCameraUri != null) { try { getContentResolver().delete(pendingCameraUri, null, null); } catch (Exception ignored) {} }\n                        pendingCameraUri = null;\n                        fileCallback.onReceiveValue(null);\n                        fileCallback = null;\n                        Toast.makeText(MainActivity.this, "Tidak ada aplikasi kamera", Toast.LENGTH_SHORT).show();\n                    }\n                    return true;\n                }\n\n                Intent picker;'''
               if needle not in java:
-                  raise SystemExit('Expected WebView file chooser block not found')
+                  raise SystemExit('Expected WebView chooser block not found')
               java = java.replace(needle, insert, 1)
               p.write_text(java, encoding='utf-8')
+              print('MainActivity patched')
+          else:
+              print('MainActivity already patched')
+          PY
 
       - name: Commit patch
         run: |
@@ -52,7 +57,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add stt.html app/src/main/java/com/sapammeded/allstt/MainActivity.java
           if git diff --cached --quiet; then
-            echo "No changes needed"
+            echo "No source changes needed"
             exit 0
           fi
           git commit -m "fix: restrict camera chooser and keep gallery password-gated"
