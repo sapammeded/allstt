@@ -14,10 +14,9 @@ import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebSettings;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
@@ -32,7 +31,7 @@ public class MainActivity extends Activity {
         webView = new WebView(this);
         setContentView(webView);
         configureWebView();
-        webView.loadUrl("file:///android_asset/stt.html");
+        webView.loadUrl("file:///android_asset/launcher.html");
     }
 
     private void configureWebView() {
