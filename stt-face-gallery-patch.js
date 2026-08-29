@@ -86,22 +86,32 @@
     button.dataset.sttFacePatchInstalled='1';
     const camera=makeInput('sttFaceDirectCamera','environment');
     const chooser=makeInput('sttFaceChooser',false);
+    const faceCard = button.closest('.card, .photo-card, section, form') || button.parentElement;
+    const existingFaceInput = faceCard ? faceCard.querySelector('input[type=file]') : null;
 
-    // Keep the existing application's photo-processing pipeline by forwarding
-    // the selected file to any compatible face-photo input already present.
+    function deliverFile(file){
+      try{
+        if(typeof window.handleFacePhotoFile==='function'){
+          window.handleFacePhotoFile(file);
+          return;
+        }
+      }catch(e){ console.warn(e); }
+      document.dispatchEvent(new CustomEvent('allstt-face-photo-selected',{detail:{file}}));
+      if(existingFaceInput){
+        try{
+          const dt=new DataTransfer();
+          dt.items.add(file);
+          existingFaceInput.files=dt.files;
+          existingFaceInput.dispatchEvent(new Event('change',{bubbles:true}));
+        }catch(e){ console.warn(e); }
+      }
+    }
+
     function forward(input){
       input.addEventListener('change',()=>{
         if(!input.files || !input.files[0]) return;
         const file=input.files[0];
-        const candidates=Array.from(document.querySelectorAll('input[type=file]')).filter(x=>x!==input);
-        const target=candidates.find(x=>/image/i.test(x.accept||'') && x.files && x.files.length===0);
-        // If the app exposes a global face-photo handler, use it.
-        try{
-          if(typeof window.handleFacePhotoFile==='function') window.handleFacePhotoFile(file);
-        }catch(e){ console.warn(e); }
-        // Otherwise dispatch a custom event so the existing page can consume it.
-        document.dispatchEvent(new CustomEvent('allstt-face-photo-selected',{detail:{file}}));
-        if(target){ try { const dt=new DataTransfer(); dt.items.add(file); target.files=dt.files; target.dispatchEvent(new Event('change',{bubbles:true})); } catch(e){} }
+        deliverFile(file);
         input.value='';
       });
     }
