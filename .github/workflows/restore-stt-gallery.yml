@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   restore:
-    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.id == 'ff6b80581af945c7bcf73c325e08424e00998da3'
+    if: ${{ !contains(github.event.head_commit.message, '[skip gallery-restore]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,18 +19,21 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Revert regression commit
+      - name: Restore last known good STT gallery behavior
         run: |
           set -e
-          if git merge-base --is-ancestor ff6b80581af945c7bcf73c325e08424e00998da3 HEAD; then
-            if git log --format=%H -n 1 --grep='Restore STT gallery protection'; then
-              echo 'Restore commit already exists.'
-              exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          changed=0
+          for sha in bbbdf4c6f477c5861177981393bb92135c07e396 1b194f2683e3f9d592bea61b1391e1663d6cf9ed; do
+            if git merge-base --is-ancestor "$sha" HEAD; then
+              git revert --no-edit "$sha"
+              changed=1
             fi
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git revert --no-edit ff6b80581af945c7bcf73c325e08424e00998da3
+          done
+          if [ "$changed" = "1" ]; then
+            git commit --amend -m 'fix: restore STT gallery protection [skip face-fix] [skip gallery-restore]'
             git push origin HEAD:main
           else
-            echo 'Regression commit is not in history; nothing to restore.'
+            echo 'No gallery regression commits found.'
           fi
