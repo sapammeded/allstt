@@ -1,0 +1,1 @@
+ALLSTT Android packaging is built from the unchanged root HTML files: stt.html, hvss2.html, vacs.html. This marker triggers CI after adding the Android wrapper.
