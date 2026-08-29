@@ -1,0 +1,131 @@
+name: Apply STT face gallery V6
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[skip face-gallery]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch STT face photo behavior
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('stt.html')
+          s = p.read_text(encoding='utf-8')
+
+          # Remove competing runtime gesture patches.
+          for sid in (
+              'ALLSTT-STT-RUNTIME-FIX-V5',
+              'ALLSTT-STT-RUNTIME-FIX-V4',
+              'ALLSTT-STT-FACE-GALLERY-V6',
+              'hidden-face-gallery-v2',
+              'ALLSTT-startup-camera-fix'
+          ):
+              s = re.sub(r'<script[^>]*id=["\']'+re.escape(sid)+r'["\'][^>]*>.*?</script>', '', s, flags=re.I|re.S)
+
+          # Remove the old standalone officer-gallery password panel from source.
+          s = re.sub(
+              r'\s*<div style="width:100%;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">.*?</div>\s*(?=</div>\s*<div id="officerPhotoPreviewWrap")',
+              '', s, flags=re.I|re.S
+          )
+
+          patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-V6">
+          (function(){
+            'use strict';
+            function install(){
+              const btn=document.getElementById('takeOfficerPhotoBtn');
+              const cam=document.getElementById('officerPhotoInput');
+              const gal=document.getElementById('officerGalleryInput');
+              if(!btn||!cam||!gal||btn.dataset.faceV6)return;
+              btn.dataset.faceV6='1';
+
+              ['officerGalleryPassword','unlockOfficerGalleryBtn','officerGalleryAccess'].forEach(function(id){
+                const e=document.getElementById(id);
+                if(e){const box=e.closest('div[style*="border-top"]')||e.parentElement;if(box)box.remove();else e.remove();}
+              });
+
+              let waiting=false,timer=null;
+              const WAIT=330;
+              const PASSWORD='mbahpritampan';
+
+              function camera(){
+                cam.setAttribute('capture','user');
+                cam.value='';
+                cam.click();
+              }
+
+              function protectedGallery(){
+                const pw=window.prompt('Masukkan password untuk upload foto wajah dari galeri:');
+                if(pw===null)return;
+                if(pw!==PASSWORD){alert('❌ Password salah. Akses ditolak.');return;}
+                gal.removeAttribute('capture');
+                gal.setAttribute('accept','image/*');
+                gal.value='';
+                gal.click();
+              }
+
+              btn.addEventListener('click',function(e){
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if(waiting){
+                  waiting=false;
+                  if(timer)clearTimeout(timer);
+                  timer=null;
+                  protectedGallery();
+                  return;
+                }
+                waiting=true;
+                timer=setTimeout(function(){
+                  if(!waiting)return;
+                  waiting=false;
+                  timer=null;
+                  camera();
+                },WAIT);
+              },true);
+
+              gal.addEventListener('change',async function(e){
+                const file=e.target.files&&e.target.files[0];
+                if(!file)return;
+                try{
+                  if(typeof saveOfficerPhoto==='function')await saveOfficerPhoto(file);
+                  else if(typeof window.saveOfficerPhoto==='function')await window.saveOfficerPhoto(file);
+                  else throw new Error('Fungsi penyimpanan foto wajah tidak tersedia.');
+                  alert('✅ Foto wajah dari galeri berhasil dipasang.');
+                }catch(err){
+                  alert('❌ Foto galeri gagal diproses: '+(err&&err.message||err));
+                }finally{gal.value='';}
+              },true);
+            }
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
+            else install();
+            window.addEventListener('load',install);
+            setTimeout(install,300);
+            setTimeout(install,1000);
+          })();
+          </script>'''
+
+          s = s.replace('</body>', patch + '\n</body>', 1)
+          p.write_text(s, encoding='utf-8')
+          print('STT face gallery V6 applied')
+
+      - name: Commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stt.html
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "fix: STT face camera single tap and protected gallery [skip face-gallery] [skip stt-runtime] [skip hidden-gallery]"
+          git push
