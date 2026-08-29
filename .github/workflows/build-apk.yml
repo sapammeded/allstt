@@ -4,12 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+  workflow_run:
+    workflows: ["Fix STT protected face gallery"]
+    types: [completed]
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,23 +34,10 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-
           assets = Path('app/src/main/assets')
           assets.mkdir(parents=True, exist_ok=True)
           for name in ('stt.html','hvss2.html','vacs.html','launcher.html'):
               (assets/name).write_text(Path(name).read_text(encoding='utf-8'), encoding='utf-8')
-
-          stt = assets/'stt.html'
-          html = stt.read_text(encoding='utf-8')
-          patch = Path('officer-gallery-patch.js').read_text(encoding='utf-8')
-          marker = 'ALLSTT: protected officer face photo source switch.'
-          if marker not in html:
-              injection = '<script>\n' + patch + '\n</script>\n'
-              if '</body>' in html:
-                  html = html.replace('</body>', injection + '</body>', 1)
-              else:
-                  html += '\n' + injection
-          stt.write_text(html, encoding='utf-8')
 
       - name: Build installable debug APK
         run: gradle --no-daemon :app:assembleDebug
