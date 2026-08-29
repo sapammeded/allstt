@@ -41,6 +41,27 @@ jobs:
               '', s, flags=re.I|re.S
           )
 
+          # Make the requested password the canonical gallery password and
+          # migrate the previous default so an existing installation does not
+          # remain locked with the old password.
+          s = s.replace('const DEFAULT_GALLERY_PASSWORD = "supangat505";', 'const DEFAULT_GALLERY_PASSWORD = "mbahpritampan";')
+          s = s.replace('const DEFAULT_GALLERY_PASSWORD = "supangat505"; // Password awal galeri', 'const DEFAULT_GALLERY_PASSWORD = "mbahpritampan"; // Password awal galeri')
+          marker = 'function getGalleryPassword(){'
+          if marker in s and 'patrol_gallery_password_migrated_v2' not in s:
+              s = s.replace(marker, '''function getGalleryPassword(){
+  // Migrate the old built-in password once; preserve any user-defined password.
+  try {
+    const saved = localStorage.getItem(GALLERY_PASSWORD_KEY);
+    if (saved === 'supangat505') {
+      localStorage.setItem(GALLERY_PASSWORD_KEY, DEFAULT_GALLERY_PASSWORD);
+      return DEFAULT_GALLERY_PASSWORD;
+    }
+  } catch(e) {}
+''', 1)
+              # The replacement above includes the original function header;
+              # remove the duplicated header if present.
+              s = s.replace('function getGalleryPassword(){\n  // Migrate the old built-in password once; preserve any user-defined password.\n', 'function getGalleryPassword(){\n  // Migrate the old built-in password once; preserve any user-defined password.\n', 1)
+
           patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-V6">
           (function(){
             'use strict';
@@ -118,7 +139,7 @@ jobs:
 
           s = s.replace('</body>', patch + '\n</body>', 1)
           p.write_text(s, encoding='utf-8')
-          print('STT face gallery V6 applied')
+          print('STT face gallery V6 applied with password migration')
 
       - name: Commit
         shell: bash
@@ -127,5 +148,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add stt.html
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
-          git commit -m "fix: STT face camera single tap and protected gallery [skip face-gallery] [skip stt-runtime] [skip hidden-gallery]"
+          git commit -m "fix: STT face gallery password migration [skip face-gallery] [skip stt-runtime] [skip hidden-gallery]"
           git push
