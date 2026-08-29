@@ -10,7 +10,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.provider.DocumentsContract;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
@@ -24,8 +23,6 @@ import android.widget.Toast;
 import android.util.Base64;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -66,7 +63,12 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
 
         webView.addJavascriptInterface(new AndroidBridge(), "Android");
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                installDownloadBridgePatch(view);
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
@@ -127,6 +129,17 @@ public class MainActivity extends Activity {
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> handleWebDownload(url, contentDisposition, mimeType));
     }
 
+    private void installDownloadBridgePatch(WebView view) {
+        String js = "(function(){if(window.__ALLSTT_DOWNLOAD_PATCH)return;window.__ALLSTT_DOWNLOAD_PATCH=true;" +
+            "function save(a){try{if(!a||!a.hasAttribute('download')||!a.href)return false;var u=a.href,n=a.download||'ALLSTT_Download';" +
+            "if(u.indexOf('blob:')!==0&&u.indexOf('data:')!==0)return false;" +
+            "if(window.Android&&Android.saveBlobUrl){Android.saveBlobUrl(u,n);return true;}return false;}catch(e){return false;}}" +
+            "var c=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){if(save(this))return c.call(document.createElement('a'));return c.call(this)};" +
+            "window.__ALLSTT_saveBlob=function(u,n){if(window.Android&&Android.saveBlobUrl){Android.saveBlobUrl(u,n);return true}return false};" +
+            "})();";
+        view.evaluateJavascript(js, null);
+    }
+
     private void handleWebDownload(String url, String contentDisposition, String mimeType) {
         if (url == null || url.isEmpty()) return;
         String filename = extractFilename(contentDisposition);
@@ -140,8 +153,8 @@ public class MainActivity extends Activity {
                 "const p=(document.getElementById('petugasName')?.value||'Petugas').trim();" +
                 "const s=(document.getElementById('shift')?.value||'SHIFT').trim().toUpperCase();" +
                 "const d=document.getElementById('tanggal')?.value||'';" +
-                "const ds=/^\\d{4}-\\d{2}-\\d{2}$/.test(d)?d.split('-').reverse().join('-'):'';" +
-                "const safe=v=>String(v||'').replace(/[\\\\/:*?\"<>|]/g,'-').replace(/\\s+/g,'_').slice(0,80);" +
+                "const ds=/^\\\\d{4}-\\\\d{2}-\\\\d{2}$/.test(d)?d.split('-').reverse().join('-'):'';" +
+                "const safe=v=>String(v||'').replace(/[\\\\\\\\/:*?\\\"<>|]/g,'-').replace(/\\\\s+/g,'_').slice(0,80);" +
                 "return encodeURIComponent(safe(p)+'_'+(ds||''+new Date().getDate().toString().padStart(2,'0')+'-'+(new Date().getMonth()+1).toString().padStart(2,'0')+'-'+new Date().getFullYear())+'_'+(safe(s)||'SHIFT')+'.pdf');" +
                 "}catch(e){return 'Petugas_SHIFT.pdf';}})()",
                 value -> {
@@ -263,6 +276,13 @@ public class MainActivity extends Activity {
         } catch (Exception e) { downloadError(e.getMessage()); }
     }
 
+    private void saveBlobUrl(String url, String filename) {
+        if (url == null || url.isEmpty()) return;
+        String u = org.json.JSONObject.quote(url);
+        String n = org.json.JSONObject.quote(filename == null || filename.isEmpty() ? "ALLSTT_Download" : filename);
+        webView.evaluateJavascript("(async()=>{try{const r=await fetch("+u+");const b=await r.blob();const fr=new FileReader();fr.onload=()=>Android.saveBase64File("+n+",b.type||'application/octet-stream',fr.result.split(',')[1]);fr.readAsDataURL(b);}catch(e){Android.downloadError(String(e));}})();", null);
+    }
+
     private Uri createCameraUri() {
         String name = "ALLSTT_" + System.currentTimeMillis() + ".jpg";
         ContentValues v = new ContentValues();
@@ -295,6 +315,7 @@ public class MainActivity extends Activity {
 
     public class AndroidBridge {
         @JavascriptInterface public void saveBase64File(String filename, String mimeType, String base64) { MainActivity.this.saveBase64File(filename, mimeType, base64); }
+        @JavascriptInterface public void saveBlobUrl(String url, String filename) { MainActivity.this.saveBlobUrl(url, filename); }
         @JavascriptInterface public void downloadError(String message) { MainActivity.this.downloadError(message); }
     }
 
