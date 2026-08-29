@@ -3016,7 +3016,7 @@ function setupSuperCleanup() {
     });
 
     uploadGalleryBtn?.addEventListener('click', () => {
-      if (!galleryAccessGranted) { alert('🔒 Masukkan password terlebih dahulu.'); return; }
+      if (!(galleryAccessGranted || window.allsttGalleryUnlocked)) { alert('🔒 Masukkan password terlebih dahulu.'); return; }
       if (!ready()) return;
       galleryInput?.click();
     });
@@ -3028,7 +3028,7 @@ function setupSuperCleanup() {
     });
 
     galleryInput?.addEventListener('change', async e => {
-      if (!galleryAccessGranted) { galleryInput.value=''; return; }
+      if (!(galleryAccessGranted || window.allsttGalleryUnlocked)) { galleryInput.value=''; return; }
       const files = Array.from(e.target.files || []);
       if (files.length) await processMany(files);
       galleryInput.value='';
@@ -3098,7 +3098,7 @@ function setupSuperCleanup() {
       const a = patrolData[k];
       const div = document.createElement('div'); div.className='area'; div.dataset.idx = k;
       
-      const galleryButton = galleryAccessGranted ? 
+      const galleryButton = (galleryAccessGranted || window.allsttGalleryUnlocked) ? 
         `<button class="btn btn-ghost btn-add" data-idx="${k}">➕ Tambah Foto (Gallery - Multi)</button><input type="file" accept="image/*" multiple style="display:none" class="file-input" data-idx="${k}"/>` : 
         `<button class="btn btn-ghost" disabled>🔒 Galeri Terkunci</button>`;
       
@@ -4354,6 +4354,7 @@ renderAreas();
 
 
 
+
 <script id="ALLSTT-STT-FACE-GALLERY-FINAL">
 (function(){
   'use strict';
@@ -4366,18 +4367,11 @@ renderAreas();
   }
 
   function unlockPatrolGallery(){
-    // Reuse the original unlock handler so its private galleryAccessGranted
-    // variable is actually changed and renderAreas() creates the existing
-    // multi-photo gallery controls in every patrol area.
-    const input=document.getElementById('cameraGalleryPassword');
-    const unlock=document.getElementById('unlockCameraGalleryBtn');
-    if(input && unlock){
-      input.value=expectedPassword();
-      unlock.click();
-      return;
-    }
-    try { window.galleryAccessGranted=true; } catch(_) {}
+    // This session flag is consumed by the existing STT render/change logic.
+    // It is never persisted, so the password is required again on a new session.
+    window.allsttGalleryUnlocked=true;
     try { if(typeof renderAreas==='function') renderAreas(); } catch(_) {}
+    try { if(typeof updateAreaSelector==='function') updateAreaSelector(); } catch(_) {}
   }
 
   function install(){
@@ -4387,7 +4381,7 @@ renderAreas();
     if(!face || !cam || !gal || face.dataset.faceFinal==='1') return;
     face.dataset.faceFinal='1';
 
-    // No standalone gallery card/menu is visible before the protected gesture.
+    // No standalone gallery/password card is visible before the protected gesture.
     ['officerGalleryAccess','officerGalleryPassword','unlockOfficerGalleryBtn','uploadOfficerGalleryBtn'].forEach(function(id){
       const el=document.getElementById(id);
       if(el){
@@ -4397,7 +4391,8 @@ renderAreas();
       }
     });
 
-    // Clone removes all legacy click/double-click handlers from the button.
+    // Clone removes every legacy face-button handler so one tap and two taps
+    // have exactly one deterministic meaning.
     const btn=face.cloneNode(true);
     btn.dataset.faceFinal='1';
     face.replaceWith(btn);
@@ -4438,6 +4433,7 @@ renderAreas();
       gal.click();
     }
 
+    // 1x tap -> camera. Wait briefly so a second fast tap can be detected.
     btn.addEventListener('click',function(e){
       e.preventDefault();
       e.stopPropagation();
@@ -4447,6 +4443,7 @@ renderAreas();
       timer=setTimeout(function(){ if(pending) openCamera(); },DOUBLE_TAP_MS);
     },true);
 
+    // Native dblclick fallback for Android WebView/browser gesture handling.
     btn.addEventListener('dblclick',function(e){
       e.preventDefault();
       e.stopPropagation();
@@ -4454,6 +4451,7 @@ renderAreas();
       openProtectedGallery();
     },true);
 
+    // Gallery photo uses the same original officer-photo pipeline.
     gal.addEventListener('change',async function(){
       const file=gal.files && gal.files[0];
       if(!file) return;
