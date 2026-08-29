@@ -1,0 +1,53 @@
+name: Apply hidden face-gallery access
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[skip hidden-gallery]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch STT hidden face gallery
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('stt.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '/* HIDDEN_FACE_GALLERY_V2 */'
+          if marker in s:
+              print('Patch already present')
+              raise SystemExit(0)
+
+          # Hide the old visible gallery/password UI without deleting its controls.
+          # The existing handlers remain intact; the hidden flow below drives them.
+          css = '''\n<style id="hidden-face-gallery-style">\n/* HIDDEN_FACE_GALLERY_V2 */\n#cameraGalleryPassword,\n#unlockCameraGalleryBtn,\n#cameraGalleryAccess { display:none !important; }\n</style>\n'''
+          s = s.replace('</head>', css + '</head>', 1)
+
+          js = r'''\n<script id="hidden-face-gallery-v2">\n/* HIDDEN_FACE_GALLERY_V2 */\n(function(){\n  function installHiddenFaceGallery(){\n    const cameraBtn = document.getElementById('openCameraMenu');\n    const nativeInput = document.getElementById('nativeCameraInput');\n    const galleryInput = document.getElementById('galleryCameraInput');\n    if (!cameraBtn || !nativeInput || !galleryInput || cameraBtn.dataset.hiddenFaceGalleryV2) return;\n    cameraBtn.dataset.hiddenFaceGalleryV2 = '1';\n\n    let timer = null;\n    let waitingSecondTap = false;\n    const DOUBLE_TAP_MS = 330;\n\n    function openCamera(){\n      nativeInput.value = '';\n      nativeInput.click();\n    }\n\n    function openProtectedGallery(){\n      const pw = window.prompt('Masukkan password:');\n      if (pw === null) return;\n      try {\n        if (typeof getGalleryPassword === 'function' && pw === getGalleryPassword()) {\n          window.galleryAccessGranted = true;\n          galleryInput.value = '';\n          galleryInput.click();\n        } else {\n          window.galleryAccessGranted = false;\n          window.alert('Password salah!');\n        }\n      } catch (e) {\n        window.galleryAccessGranted = false;\n        window.alert('Akses galeri gagal.');\n      }\n    }\n\n    // Capture phase blocks the original single-click handler until the tap\n    // is known to be a single tap or a double tap.\n    cameraBtn.addEventListener('click', function(ev){\n      ev.preventDefault();\n      ev.stopImmediatePropagation();\n\n      if (waitingSecondTap) {\n        waitingSecondTap = false;\n        if (timer) clearTimeout(timer);\n        timer = null;\n        openProtectedGallery();\n        return;\n      }\n\n      waitingSecondTap = true;\n      timer = setTimeout(function(){\n        if (!waitingSecondTap) return;\n        waitingSecondTap = false;\n        timer = null;\n        openCamera();\n      }, DOUBLE_TAP_MS);\n    }, true);\n\n    // Remove/hide any visible password card text that may be rendered by\n    // future versions, while leaving the existing gallery input functional.\n    const pw = document.getElementById('cameraGalleryPassword');\n    if (pw) {\n      const card = pw.closest('.card');\n      if (card) card.style.display = 'none';\n    }\n  }\n\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installHiddenFaceGallery);\n  else installHiddenFaceGallery();\n  window.addEventListener('load', installHiddenFaceGallery);\n})();\n</script>\n'''
+          s = s.replace('</body>', js + '</body>', 1)
+          p.write_text(s, encoding='utf-8')
+          print('Hidden double-tap face gallery patch applied')
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stt.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "feat: hidden double-tap face gallery [skip hidden-gallery]"
+          git push
