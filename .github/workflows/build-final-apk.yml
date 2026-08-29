@@ -20,6 +20,9 @@ jobs:
       - name: Apply STT identity and letterhead patch
         shell: python
         run: python apply_identity_default.py
+      - name: Finalize persistent identity storage
+        shell: python
+        run: python finalize_identity_persistence.py
       - name: Prepare HTML assets
         shell: python
         run: |
