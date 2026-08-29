@@ -26,6 +26,14 @@ jobs:
       - name: Prepare original HTML assets
         run: |
           mkdir -p app/src/main/assets
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('stt.html')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('accept="image/*" capture="environment"', 'accept="image/*"')
+          s = s.replace("setTimeout(() => nativeInput.click(), 50);", "nativeInput.click();")
+          p.write_text(s, encoding='utf-8')
+          PY
           cp stt.html app/src/main/assets/stt.html
           cp hvss2.html app/src/main/assets/hvss2.html
           cp vacs.html app/src/main/assets/vacs.html
