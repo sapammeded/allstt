@@ -12,6 +12,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify STT gallery password protection
+        run: |
+          grep -q "galleryAccessGranted" stt.html
+          grep -q "Masukkan password terlebih dahulu" stt.html
+          grep -q "type=\"file\".*multiple" stt.html
+          echo "STT gallery multi-photo password lock verified."
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
