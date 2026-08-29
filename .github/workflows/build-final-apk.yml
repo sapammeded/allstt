@@ -17,6 +17,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - name: Apply STT identity and letterhead patch
+        shell: python
+        run: python apply_identity_default.py
       - name: Prepare HTML assets
         shell: python
         run: |
