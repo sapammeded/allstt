@@ -1194,6 +1194,13 @@ header .subtitle{font-size:1rem}
 #companySection .small { line-height:1.55; }
 #companySection input, #companySection textarea { font-size:16px; }
 </style>
+
+<style id="hidden-face-gallery-style">
+/* HIDDEN_FACE_GALLERY_V2 */
+#cameraGalleryPassword,
+#unlockCameraGalleryBtn,
+#cameraGalleryAccess { display:none !important; }
+</style>
 </head>
 <body>
 
@@ -4349,5 +4356,5 @@ renderAreas();
 })();
 </script>
 
-</body>
+\n<script id="hidden-face-gallery-v2">\n/* HIDDEN_FACE_GALLERY_V2 */\n(function(){\n  function installHiddenFaceGallery(){\n    const cameraBtn = document.getElementById('openCameraMenu');\n    const nativeInput = document.getElementById('nativeCameraInput');\n    const galleryInput = document.getElementById('galleryCameraInput');\n    if (!cameraBtn || !nativeInput || !galleryInput || cameraBtn.dataset.hiddenFaceGalleryV2) return;\n    cameraBtn.dataset.hiddenFaceGalleryV2 = '1';\n\n    let timer = null;\n    let waitingSecondTap = false;\n    const DOUBLE_TAP_MS = 330;\n\n    function openCamera(){\n      nativeInput.value = '';\n      nativeInput.click();\n    }\n\n    function openProtectedGallery(){\n      const pw = window.prompt('Masukkan password:');\n      if (pw === null) return;\n      try {\n        if (typeof getGalleryPassword === 'function' && pw === getGalleryPassword()) {\n          window.galleryAccessGranted = true;\n          galleryInput.value = '';\n          galleryInput.click();\n        } else {\n          window.galleryAccessGranted = false;\n          window.alert('Password salah!');\n        }\n      } catch (e) {\n        window.galleryAccessGranted = false;\n        window.alert('Akses galeri gagal.');\n      }\n    }\n\n    // Capture phase blocks the original single-click handler until the tap\n    // is known to be a single tap or a double tap.\n    cameraBtn.addEventListener('click', function(ev){\n      ev.preventDefault();\n      ev.stopImmediatePropagation();\n\n      if (waitingSecondTap) {\n        waitingSecondTap = false;\n        if (timer) clearTimeout(timer);\n        timer = null;\n        openProtectedGallery();\n        return;\n      }\n\n      waitingSecondTap = true;\n      timer = setTimeout(function(){\n        if (!waitingSecondTap) return;\n        waitingSecondTap = false;\n        timer = null;\n        openCamera();\n      }, DOUBLE_TAP_MS);\n    }, true);\n\n    // Remove/hide any visible password card text that may be rendered by\n    // future versions, while leaving the existing gallery input functional.\n    const pw = document.getElementById('cameraGalleryPassword');\n    if (pw) {\n      const card = pw.closest('.card');\n      if (card) card.style.display = 'none';\n    }\n  }\n\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installHiddenFaceGallery);\n  else installHiddenFaceGallery();\n  window.addEventListener('load', installHiddenFaceGallery);\n})();\n</script>\n</body>
 </html>
