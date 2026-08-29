@@ -27,12 +27,10 @@ s = s.replace("const desc = String(area.descriptions?.[i] || 'TERKENDALI AMAN').
 s = re.sub(r'\s*<div class="col">\s*<label class="small">EMAIL PERUSAHAAN</label>\s*<input id="companyEmail".*?</div>\s*', '\n', s, count=1, flags=re.S)
 s = re.sub(r'\s*<div class="col">\s*<label class="small">TELEPON / HOTLINE</label>\s*<input id="companyPhone".*?</div>\s*', '\n', s, count=1, flags=re.S)
 
-# Existing premium letterhead CSS is preserved. If an older STT does not have it, add it.
 if 'ALLSTT premium letterhead editor' not in s:
     premium_css = '''\n<style id="ALLSTT premium letterhead editor">\n#companySection { background:linear-gradient(145deg,#fff,#f8fbff); border:1px solid #dbe5f0; border-left:6px solid #0b3d91; border-radius:20px; padding:24px; box-shadow:0 10px 28px rgba(15,23,42,.10); }\n#companySection > label:first-child { display:block; font-size:20px; font-weight:900; letter-spacing:.3px; color:#0b3d91; text-transform:none; }\n#companySection .small { line-height:1.55; }\n#companySection input,#companySection textarea { font-size:16px; }\n</style>\n'''
     s = s.replace('</head>', premium_css + '</head>', 1)
 
-# Filename: Petugas_DD-MM-YYYY_SHIFT.pdf
 old_filename = "const filename = `Laporan_Patroli_${safe(petugas)}_${safe(tanggal)}.pdf`;"
 new_filename = """const filenameDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(tanggal)\n        ? tanggal.split('-').reverse().join('-')\n        : safe(tanggal || new Date().toISOString().slice(0,10));\n      const filenameShift = safe((document.getElementById('shift')?.value || shift || '').trim()).replace(/_+/g,'_') || 'SHIFT';\n      const filename = `${safe(petugas || 'Petugas')}_${filenameDate}_${filenameShift}.pdf`;"""
 s = s.replace(old_filename, new_filename)
@@ -54,9 +52,10 @@ officer_html_add = '''<input id="officerPhotoInput" type="file" accept="image/*"
           </div>
         </div>'''
 if 'id="officerGalleryInput"' not in s:
-    if officer_html_marker not in s:
-        raise SystemExit('Officer photo input marker not found')
-    s = s.replace(officer_html_marker, officer_html_add, 1)
+    if officer_html_marker in s:
+        s = s.replace(officer_html_marker, officer_html_add, 1)
+    else:
+        print('Officer photo input marker not found; continuing without HTML gallery reinjection')
 
 officer_js_marker = '''  document.getElementById('takeOfficerPhotoBtn')?.addEventListener('click',()=>{
     const input = document.getElementById('officerPhotoInput');
@@ -114,11 +113,11 @@ officer_js_add = '''  document.getElementById('takeOfficerPhotoBtn')?.addEventLi
     }
   });'''
 if 'id="uploadOfficerGalleryBtn"' not in s:
-    if officer_js_marker not in s:
-        raise SystemExit('Officer camera handler marker not found')
-    s = s.replace(officer_js_marker, officer_js_add, 1)
+    if officer_js_marker in s:
+        s = s.replace(officer_js_marker, officer_js_add, 1)
+    else:
+        print('Officer camera handler marker not found; continuing without JS gallery reinjection')
 
-# Robust autosave/recovery.
 autosave_patch = r'''
 <!-- ALLSTT ROBUST AUTOSAVE V2 -->
 <script id="ALLSTT-robust-autosave">
@@ -174,8 +173,6 @@ autosave_patch = r'''
 if 'id="ALLSTT-robust-autosave"' not in s:
     s = s.replace('</body>', autosave_patch + '\n</body>', 1)
 
-# Hard runtime recovery for the startup modal. This is intentionally independent
-# of localStorage so a WebView storage error cannot strand the user on LANJUTKAN.
 startup_fix = r'''
 <!-- ALLSTT STARTUP + FACE CAMERA DOUBLE-TAP FIX -->
 <script id="ALLSTT-startup-camera-fix">
@@ -215,8 +212,6 @@ startup_fix = r'''
     }
     function openCameraGalleryChooser(){
       if(!password()) return;
-      // No capture attribute: Android/WebView can present the available camera
-      // providers together with the gallery/file picker.
       if(galleryInput){
         galleryInput.removeAttribute('capture');
         galleryInput.value='';
@@ -247,4 +242,4 @@ if 'id="ALLSTT-startup-camera-fix"' not in s:
     s = s.replace('</body>', startup_fix + '\n</body>', 1)
 
 p.write_text(s, encoding='utf-8')
-print('STT patch applied: startup recovery, camera single/double tap chooser, protected officer gallery, photo quality, autosave.')
+print('STT patch applied.')
