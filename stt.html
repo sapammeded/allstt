@@ -4282,5 +4282,57 @@ renderAreas();
 
 })();
 </script>
+
+<!-- ALLSTT ROBUST AUTOSAVE V2 -->
+<script id="ALLSTT-robust-autosave">
+(function(){
+  'use strict';
+  const KEY='allstt_stt_draft_v2';
+  let timer=null, restoring=false;
+  function el(id){return document.getElementById(id)}
+  function snapshot(){
+    const fields={};
+    document.querySelectorAll('input,select,textarea').forEach(e=>{
+      if(!e.id || e.type==='file' || e.type==='password') return;
+      fields[e.id]=(e.type==='checkbox'||e.type==='radio') ? !!e.checked : (e.value ?? '');
+    });
+    return {version:2,savedAt:Date.now(),fields};
+  }
+  function saveNow(){
+    if(restoring) return;
+    try{
+      if(typeof persistMeta==='function') persistMeta();
+      localStorage.setItem(KEY,JSON.stringify(snapshot()));
+      localStorage.setItem('allstt_autosave_at',String(Date.now()));
+    }catch(e){console.warn('ALLSTT autosave',e)}
+  }
+  function restore(){
+    restoring=true;
+    try{
+      const raw=localStorage.getItem(KEY); if(!raw) return;
+      const d=JSON.parse(raw); if(!d || d.version!==2 || !d.fields) return;
+      Object.entries(d.fields).forEach(([id,v])=>{
+        const e=el(id); if(!e || e.type==='file' || e.type==='password') return;
+        if(e.type==='checkbox'||e.type==='radio') e.checked=!!v; else e.value=v;
+      });
+    }catch(e){console.warn('ALLSTT draft restore',e)}
+    finally{restoring=false}
+  }
+  function schedule(){clearTimeout(timer);timer=setTimeout(saveNow,250)}
+  function start(){
+    restore();
+    document.addEventListener('input',schedule,{passive:true});
+    document.addEventListener('change',schedule,{passive:true});
+    document.addEventListener('blur',schedule,true);
+    window.addEventListener('pagehide',saveNow);
+    window.addEventListener('beforeunload',saveNow);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveNow()});
+    setInterval(saveNow,15000);
+    setTimeout(saveNow,800);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start,{once:true}); else start();
+})();
+</script>
+
 </body>
 </html>
