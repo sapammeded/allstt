@@ -1,0 +1,84 @@
+name: Apply STT runtime fix
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch STT
+        run: |
+          if echo "$GITHUB_HEAD_REF $GITHUB_REF ${{ github.event.head_commit.message }}" | grep -q '\[skip stt-runtime\]'; then
+            echo 'Skip runtime patch commit'
+            exit 0
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('stt.html')
+          s=p.read_text(encoding='utf-8')
+          for sid in ('hidden-face-gallery-v2','ALLSTT-startup-camera-fix'):
+              s=re.sub(r'<script[^>]*id=["\']'+re.escape(sid)+r'["\'][^>]*>.*?</script>', '', s, flags=re.I|re.S)
+          marker='ALLSTT_STT_RUNTIME_FIX_V5'
+          if marker in s:
+              print('V5 already present')
+              raise SystemExit(0)
+          patch=r'''
+          <script id="ALLSTT-STT-RUNTIME-FIX-V5">
+          /* ALLSTT_STT_RUNTIME_FIX_V5 */
+          (function(){
+            'use strict';
+            function el(id){return document.getElementById(id)}
+            function put(k,v){try{localStorage.setItem(k,v)}catch(_){} }
+            function install(){
+              const continueBtn=el('aamiinBtn'), modal=el('notificationModal');
+              if(continueBtn&&!continueBtn.dataset.v5){
+                continueBtn.dataset.v5='1';
+                continueBtn.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();if(modal)modal.style.display='none';put('bangPriNotif','dilihat')},true);
+              }
+              const hb=el('hamburgerBtn'), nav=el('sideNav'), ov=el('navOverlay');
+              if(hb&&nav&&ov&&!hb.dataset.v5){
+                hb.dataset.v5='1';
+                function close(){nav.classList.remove('open');ov.classList.remove('open');hb.setAttribute('aria-expanded','false');const i=hb.querySelector('i');if(i)i.className='fas fa-bars'}
+                function open(){nav.classList.add('open');ov.classList.add('open');hb.setAttribute('aria-expanded','true');const i=hb.querySelector('i');if(i)i.className='fas fa-xmark'}
+                hb.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();nav.classList.contains('open')?close():open()},true);
+                ov.addEventListener('click',close,true);
+                nav.querySelectorAll('.nav-item').forEach(function(item){item.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();const tab=item.dataset.tab,target=item.dataset.target;close();if(tab&&typeof window.switchToTab==='function'){window.switchToTab(tab);return}if(target){const node=el(target);if(node){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));if(target!=='top')node.classList.add('menu-section-open');if(target==='top')window.scrollTo({top:0,behavior:'smooth'});else setTimeout(function(){node.scrollIntoView({behavior:'smooth',block:'start'})},50)}}},true)})
+              }
+              const face=el('takeOfficerPhotoBtn'),cam=el('officerPhotoInput'),gal=el('officerGalleryInput');
+              if(face&&cam&&gal&&!face.dataset.v5){
+                face.dataset.v5='1';let waiting=false,timer=null;const WAIT=330;
+                function cameraOnly(){cam.setAttribute('capture','user');cam.value='';cam.click()}
+                function chooser(){const pw=window.prompt('Masukkan password untuk kamera + galeri foto wajah:');if(pw===null)return;let expected='';try{expected=typeof getGalleryPassword==='function'?getGalleryPassword():''}catch(_){}if(!expected||pw!==expected){alert('❌ Password salah. Akses ditolak.');return}gal.removeAttribute('capture');gal.setAttribute('accept','image/*');gal.value='';gal.click()}
+                face.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();if(waiting){waiting=false;if(timer)clearTimeout(timer);timer=null;chooser();return}waiting=true;timer=setTimeout(function(){if(!waiting)return;waiting=false;timer=null;cameraOnly()},WAIT)},true);
+                gal.addEventListener('change',async function(e){const file=e.target.files&&e.target.files[0];if(!file)return;try{if(typeof saveOfficerPhoto==='function')await saveOfficerPhoto(file);else{const r=new FileReader();r.onload=function(){const img=el('officerPhotoPreview'),wrap=el('officerPhotoPreviewWrap'),st=el('officerPhotoStatus'),rm=el('removeOfficerPhotoBtn');if(img)img.src=r.result;if(wrap)wrap.style.display='block';if(st)st.textContent='✅ Foto wajah siap dimasukkan ke PDF.';if(rm)rm.style.display='inline-flex'};r.readAsDataURL(file)}}catch(err){alert('❌ Foto galeri gagal diproses: '+(err&&err.message||err))}finally{gal.value=''}},true)
+              }
+            }
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+            window.addEventListener('load',install);setTimeout(install,300);setTimeout(install,1000);
+          })();
+          </script>
+          '''
+          s=s.replace('</body>',patch+'\n</body>',1)
+          p.write_text(s,encoding='utf-8')
+          print('STT V5 applied')
+          PY
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stt.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix: STT runtime V5 [skip stt-runtime]"
+          git push
