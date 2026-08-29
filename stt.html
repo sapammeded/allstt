@@ -4356,70 +4356,43 @@ renderAreas();
 })();
 </script>
 
-\n<script id="hidden-face-gallery-v2">\n/* HIDDEN_FACE_GALLERY_V2 */\n(function(){\n  function installHiddenFaceGallery(){\n    const cameraBtn = document.getElementById('openCameraMenu');\n    const nativeInput = document.getElementById('nativeCameraInput');\n    const galleryInput = document.getElementById('galleryCameraInput');\n    if (!cameraBtn || !nativeInput || !galleryInput || cameraBtn.dataset.hiddenFaceGalleryV2) return;\n    cameraBtn.dataset.hiddenFaceGalleryV2 = '1';\n\n    let timer = null;\n    let waitingSecondTap = false;\n    const DOUBLE_TAP_MS = 330;\n\n    function openCamera(){\n      nativeInput.value = '';\n      nativeInput.click();\n    }\n\n    function openProtectedGallery(){\n      const pw = window.prompt('Masukkan password:');\n      if (pw === null) return;\n      try {\n        if (typeof getGalleryPassword === 'function' && pw === getGalleryPassword()) {\n          window.galleryAccessGranted = true;\n          galleryInput.value = '';\n          galleryInput.click();\n        } else {\n          window.galleryAccessGranted = false;\n          window.alert('Password salah!');\n        }\n      } catch (e) {\n        window.galleryAccessGranted = false;\n        window.alert('Akses galeri gagal.');\n      }\n    }\n\n    // Capture phase blocks the original single-click handler until the tap\n    // is known to be a single tap or a double tap.\n    cameraBtn.addEventListener('click', function(ev){\n      ev.preventDefault();\n      ev.stopImmediatePropagation();\n\n      if (waitingSecondTap) {\n        waitingSecondTap = false;\n        if (timer) clearTimeout(timer);\n        timer = null;\n        openProtectedGallery();\n        return;\n      }\n\n      waitingSecondTap = true;\n      timer = setTimeout(function(){\n        if (!waitingSecondTap) return;\n        waitingSecondTap = false;\n        timer = null;\n        openCamera();\n      }, DOUBLE_TAP_MS);\n    }, true);\n\n    // Remove/hide any visible password card text that may be rendered by\n    // future versions, while leaving the existing gallery input functional.\n    const pw = document.getElementById('cameraGalleryPassword');\n    if (pw) {\n      const card = pw.closest('.card');\n      if (card) card.style.display = 'none';\n    }\n  }\n\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installHiddenFaceGallery);\n  else installHiddenFaceGallery();\n  window.addEventListener('load', installHiddenFaceGallery);\n})();\n</script>\n
+\n\n
 <!-- ALLSTT STARTUP + FACE CAMERA DOUBLE-TAP FIX -->
-<script id="ALLSTT-startup-camera-fix">
+
+
+
+<script id="ALLSTT-STT-RUNTIME-FIX-V5">
+/* ALLSTT_STT_RUNTIME_FIX_V5 */
 (function(){
   'use strict';
+  function el(id){return document.getElementById(id)}
+  function put(k,v){try{localStorage.setItem(k,v)}catch(_){} }
   function install(){
-    const modal=document.getElementById('notificationModal');
-    const btn=document.getElementById('aamiinBtn');
-    if(btn && !btn.dataset.allsttContinueFix){
-      btn.dataset.allsttContinueFix='1';
-      btn.addEventListener('click',function(e){
-        e.preventDefault(); e.stopPropagation();
-        if(modal) modal.style.display='none';
-        try{localStorage.setItem('bangPriNotif','dilihat')}catch(_){ }
-      },true);
+    const continueBtn=el('aamiinBtn'), modal=el('notificationModal');
+    if(continueBtn&&!continueBtn.dataset.v5){
+      continueBtn.dataset.v5='1';
+      continueBtn.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();if(modal)modal.style.display='none';put('bangPriNotif','dilihat')},true);
     }
-
-    const cameraBtn=document.getElementById('openCameraMenu');
-    const nativeInput=document.getElementById('nativeCameraInput');
-    const galleryInput=document.getElementById('galleryCameraInput');
-    if(!cameraBtn || !nativeInput || cameraBtn.dataset.allsttCameraFix) return;
-    cameraBtn.dataset.allsttCameraFix='1';
-
-    let timer=null, waiting=false;
-    const DOUBLE_TAP_MS=330;
-    function openCamera(){
-      nativeInput.value='';
-      nativeInput.click();
+    const hb=el('hamburgerBtn'), nav=el('sideNav'), ov=el('navOverlay');
+    if(hb&&nav&&ov&&!hb.dataset.v5){
+      hb.dataset.v5='1';
+      function close(){nav.classList.remove('open');ov.classList.remove('open');hb.setAttribute('aria-expanded','false');const i=hb.querySelector('i');if(i)i.className='fas fa-bars'}
+      function open(){nav.classList.add('open');ov.classList.add('open');hb.setAttribute('aria-expanded','true');const i=hb.querySelector('i');if(i)i.className='fas fa-xmark'}
+      hb.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();nav.classList.contains('open')?close():open()},true);
+      ov.addEventListener('click',close,true);
+      nav.querySelectorAll('.nav-item').forEach(function(item){item.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();const tab=item.dataset.tab,target=item.dataset.target;close();if(tab&&typeof window.switchToTab==='function'){window.switchToTab(tab);return}if(target){const node=el(target);if(node){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));if(target!=='top')node.classList.add('menu-section-open');if(target==='top')window.scrollTo({top:0,behavior:'smooth'});else setTimeout(function(){node.scrollIntoView({behavior:'smooth',block:'start'})},50)}}},true)})
     }
-    function password(){
-      const pw=window.prompt('Masukkan password galeri foto wajah:');
-      if(pw===null) return false;
-      let expected='';
-      try{ expected=(typeof getGalleryPassword==='function') ? getGalleryPassword() : ''; }catch(_){ expected=''; }
-      if(!expected || pw!==expected){ window.alert('❌ Password salah!'); return false; }
-      return true;
+    const face=el('takeOfficerPhotoBtn'),cam=el('officerPhotoInput'),gal=el('officerGalleryInput');
+    if(face&&cam&&gal&&!face.dataset.v5){
+      face.dataset.v5='1';let waiting=false,timer=null;const WAIT=330;
+      function cameraOnly(){cam.setAttribute('capture','user');cam.value='';cam.click()}
+      function chooser(){const pw=window.prompt('Masukkan password untuk kamera + galeri foto wajah:');if(pw===null)return;let expected='';try{expected=typeof getGalleryPassword==='function'?getGalleryPassword():''}catch(_){}if(!expected||pw!==expected){alert('❌ Password salah. Akses ditolak.');return}gal.removeAttribute('capture');gal.setAttribute('accept','image/*');gal.value='';gal.click()}
+      face.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();if(waiting){waiting=false;if(timer)clearTimeout(timer);timer=null;chooser();return}waiting=true;timer=setTimeout(function(){if(!waiting)return;waiting=false;timer=null;cameraOnly()},WAIT)},true);
+      gal.addEventListener('change',async function(e){const file=e.target.files&&e.target.files[0];if(!file)return;try{if(typeof saveOfficerPhoto==='function')await saveOfficerPhoto(file);else{const r=new FileReader();r.onload=function(){const img=el('officerPhotoPreview'),wrap=el('officerPhotoPreviewWrap'),st=el('officerPhotoStatus'),rm=el('removeOfficerPhotoBtn');if(img)img.src=r.result;if(wrap)wrap.style.display='block';if(st)st.textContent='✅ Foto wajah siap dimasukkan ke PDF.';if(rm)rm.style.display='inline-flex'};r.readAsDataURL(file)}}catch(err){alert('❌ Foto galeri gagal diproses: '+(err&&err.message||err))}finally{gal.value=''}},true)
     }
-    function openCameraGalleryChooser(){
-      if(!password()) return;
-      // No capture attribute: Android/WebView can present the available camera
-      // providers together with the gallery/file picker.
-      if(galleryInput){
-        galleryInput.removeAttribute('capture');
-        galleryInput.value='';
-        galleryInput.click();
-      }
-    }
-    cameraBtn.addEventListener('click',function(e){
-      e.preventDefault(); e.stopImmediatePropagation();
-      if(waiting){
-        waiting=false; if(timer) clearTimeout(timer); timer=null;
-        openCameraGalleryChooser();
-        return;
-      }
-      waiting=true;
-      timer=setTimeout(function(){
-        if(!waiting) return;
-        waiting=false; timer=null;
-        openCamera();
-      },DOUBLE_TAP_MS);
-    },true);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true});
-  else install();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+  window.addEventListener('load',install);setTimeout(install,300);setTimeout(install,1000);
 })();
 </script>
 
