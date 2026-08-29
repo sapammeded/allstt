@@ -61,6 +61,44 @@ public class MainActivity extends Activity {
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = callback;
+
+                // IMPORTANT: capture-enabled inputs are camera inputs. Use a chooser
+                // containing only ACTION_IMAGE_CAPTURE apps, so Gallery is never shown
+                // when the user presses KAMERA HP. Normal file inputs keep the picker.
+                if (params.isCaptureEnabled()) {
+                    Intent cameraOnly = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    if (cameraOnly.resolveActivity(getPackageManager()) == null) {
+                        fileCallback.onReceiveValue(null);
+                        fileCallback = null;
+                        Toast.makeText(MainActivity.this, "Tidak ada aplikasi kamera", Toast.LENGTH_SHORT).show();
+                        return true;
+                    }
+
+                    pendingCameraUri = createCameraUri();
+                    if (pendingCameraUri != null) {
+                        cameraOnly.putExtra(MediaStore.EXTRA_OUTPUT, pendingCameraUri);
+                    }
+                    cameraOnly.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+                    if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
+                    }
+
+                    try {
+                        Intent chooser = Intent.createChooser(cameraOnly, "Pilih aplikasi kamera");
+                        startActivityForResult(chooser, FILE_CHOOSER);
+                    } catch (ActivityNotFoundException e) {
+                        if (pendingCameraUri != null) {
+                            try { getContentResolver().delete(pendingCameraUri, null, null); } catch (Exception ignored) {}
+                        }
+                        pendingCameraUri = null;
+                        fileCallback.onReceiveValue(null);
+                        fileCallback = null;
+                        Toast.makeText(MainActivity.this, "Tidak ada aplikasi kamera", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                }
+
                 Intent picker;
                 try { picker = params.createIntent(); }
                 catch (Exception e) { picker = new Intent(Intent.ACTION_GET_CONTENT); }
