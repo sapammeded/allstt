@@ -4356,5 +4356,72 @@ renderAreas();
 })();
 </script>
 
-\n<script id="hidden-face-gallery-v2">\n/* HIDDEN_FACE_GALLERY_V2 */\n(function(){\n  function installHiddenFaceGallery(){\n    const cameraBtn = document.getElementById('openCameraMenu');\n    const nativeInput = document.getElementById('nativeCameraInput');\n    const galleryInput = document.getElementById('galleryCameraInput');\n    if (!cameraBtn || !nativeInput || !galleryInput || cameraBtn.dataset.hiddenFaceGalleryV2) return;\n    cameraBtn.dataset.hiddenFaceGalleryV2 = '1';\n\n    let timer = null;\n    let waitingSecondTap = false;\n    const DOUBLE_TAP_MS = 330;\n\n    function openCamera(){\n      nativeInput.value = '';\n      nativeInput.click();\n    }\n\n    function openProtectedGallery(){\n      const pw = window.prompt('Masukkan password:');\n      if (pw === null) return;\n      try {\n        if (typeof getGalleryPassword === 'function' && pw === getGalleryPassword()) {\n          window.galleryAccessGranted = true;\n          galleryInput.value = '';\n          galleryInput.click();\n        } else {\n          window.galleryAccessGranted = false;\n          window.alert('Password salah!');\n        }\n      } catch (e) {\n        window.galleryAccessGranted = false;\n        window.alert('Akses galeri gagal.');\n      }\n    }\n\n    // Capture phase blocks the original single-click handler until the tap\n    // is known to be a single tap or a double tap.\n    cameraBtn.addEventListener('click', function(ev){\n      ev.preventDefault();\n      ev.stopImmediatePropagation();\n\n      if (waitingSecondTap) {\n        waitingSecondTap = false;\n        if (timer) clearTimeout(timer);\n        timer = null;\n        openProtectedGallery();\n        return;\n      }\n\n      waitingSecondTap = true;\n      timer = setTimeout(function(){\n        if (!waitingSecondTap) return;\n        waitingSecondTap = false;\n        timer = null;\n        openCamera();\n      }, DOUBLE_TAP_MS);\n    }, true);\n\n    // Remove/hide any visible password card text that may be rendered by\n    // future versions, while leaving the existing gallery input functional.\n    const pw = document.getElementById('cameraGalleryPassword');\n    if (pw) {\n      const card = pw.closest('.card');\n      if (card) card.style.display = 'none';\n    }\n  }\n\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installHiddenFaceGallery);\n  else installHiddenFaceGallery();\n  window.addEventListener('load', installHiddenFaceGallery);\n})();\n</script>\n</body>
+\n<script id="hidden-face-gallery-v2">\n/* HIDDEN_FACE_GALLERY_V2 */\n(function(){\n  function installHiddenFaceGallery(){\n    const cameraBtn = document.getElementById('openCameraMenu');\n    const nativeInput = document.getElementById('nativeCameraInput');\n    const galleryInput = document.getElementById('galleryCameraInput');\n    if (!cameraBtn || !nativeInput || !galleryInput || cameraBtn.dataset.hiddenFaceGalleryV2) return;\n    cameraBtn.dataset.hiddenFaceGalleryV2 = '1';\n\n    let timer = null;\n    let waitingSecondTap = false;\n    const DOUBLE_TAP_MS = 330;\n\n    function openCamera(){\n      nativeInput.value = '';\n      nativeInput.click();\n    }\n\n    function openProtectedGallery(){\n      const pw = window.prompt('Masukkan password:');\n      if (pw === null) return;\n      try {\n        if (typeof getGalleryPassword === 'function' && pw === getGalleryPassword()) {\n          window.galleryAccessGranted = true;\n          galleryInput.value = '';\n          galleryInput.click();\n        } else {\n          window.galleryAccessGranted = false;\n          window.alert('Password salah!');\n        }\n      } catch (e) {\n        window.galleryAccessGranted = false;\n        window.alert('Akses galeri gagal.');\n      }\n    }\n\n    // Capture phase blocks the original single-click handler until the tap\n    // is known to be a single tap or a double tap.\n    cameraBtn.addEventListener('click', function(ev){\n      ev.preventDefault();\n      ev.stopImmediatePropagation();\n\n      if (waitingSecondTap) {\n        waitingSecondTap = false;\n        if (timer) clearTimeout(timer);\n        timer = null;\n        openProtectedGallery();\n        return;\n      }\n\n      waitingSecondTap = true;\n      timer = setTimeout(function(){\n        if (!waitingSecondTap) return;\n        waitingSecondTap = false;\n        timer = null;\n        openCamera();\n      }, DOUBLE_TAP_MS);\n    }, true);\n\n    // Remove/hide any visible password card text that may be rendered by\n    // future versions, while leaving the existing gallery input functional.\n    const pw = document.getElementById('cameraGalleryPassword');\n    if (pw) {\n      const card = pw.closest('.card');\n      if (card) card.style.display = 'none';\n    }\n  }\n\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installHiddenFaceGallery);\n  else installHiddenFaceGallery();\n  window.addEventListener('load', installHiddenFaceGallery);\n})();\n</script>\n
+<!-- ALLSTT STARTUP + FACE CAMERA DOUBLE-TAP FIX -->
+<script id="ALLSTT-startup-camera-fix">
+(function(){
+  'use strict';
+  function install(){
+    const modal=document.getElementById('notificationModal');
+    const btn=document.getElementById('aamiinBtn');
+    if(btn && !btn.dataset.allsttContinueFix){
+      btn.dataset.allsttContinueFix='1';
+      btn.addEventListener('click',function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(modal) modal.style.display='none';
+        try{localStorage.setItem('bangPriNotif','dilihat')}catch(_){ }
+      },true);
+    }
+
+    const cameraBtn=document.getElementById('openCameraMenu');
+    const nativeInput=document.getElementById('nativeCameraInput');
+    const galleryInput=document.getElementById('galleryCameraInput');
+    if(!cameraBtn || !nativeInput || cameraBtn.dataset.allsttCameraFix) return;
+    cameraBtn.dataset.allsttCameraFix='1';
+
+    let timer=null, waiting=false;
+    const DOUBLE_TAP_MS=330;
+    function openCamera(){
+      nativeInput.value='';
+      nativeInput.click();
+    }
+    function password(){
+      const pw=window.prompt('Masukkan password galeri foto wajah:');
+      if(pw===null) return false;
+      let expected='';
+      try{ expected=(typeof getGalleryPassword==='function') ? getGalleryPassword() : ''; }catch(_){ expected=''; }
+      if(!expected || pw!==expected){ window.alert('❌ Password salah!'); return false; }
+      return true;
+    }
+    function openCameraGalleryChooser(){
+      if(!password()) return;
+      // No capture attribute: Android/WebView can present the available camera
+      // providers together with the gallery/file picker.
+      if(galleryInput){
+        galleryInput.removeAttribute('capture');
+        galleryInput.value='';
+        galleryInput.click();
+      }
+    }
+    cameraBtn.addEventListener('click',function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if(waiting){
+        waiting=false; if(timer) clearTimeout(timer); timer=null;
+        openCameraGalleryChooser();
+        return;
+      }
+      waiting=true;
+      timer=setTimeout(function(){
+        if(!waiting) return;
+        waiting=false; timer=null;
+        openCamera();
+      },DOUBLE_TAP_MS);
+    },true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true});
+  else install();
+})();
+</script>
+
+</body>
 </html>
