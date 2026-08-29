@@ -33,7 +33,9 @@ jobs:
           grep -q "type=\"file\".*multiple" stt.html
           grep -q "DEFAULT_PATROL_DESCRIPTION" stt.html
           grep -q "4096" stt.html
-          echo "STT gallery lock, high-resolution photo processing and default description verified."
+          grep -q "officerGalleryPassword" stt.html
+          grep -q "uploadOfficerGalleryBtn" stt.html
+          echo "STT patrol gallery lock, officer face gallery controls and photo processing verified."
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -58,13 +60,25 @@ jobs:
           p = Path('app/src/main/assets/stt.html')
           html = p.read_text(encoding='utf-8')
           guard = Path('gallery-lock.js').read_text(encoding='utf-8')
+          face_patch = Path('officer-gallery-patch.js').read_text(encoding='utf-8')
+
+          # The face-gallery patch must be injected INSIDE the main STT IIFE,
+          # after saveOfficerPhoto() exists, so it can use the same in-memory
+          # officer photo state that the PDF generator reads.
+          face_marker = "  document.getElementById('takeOfficerPhotoBtn')?.addEventListener('click', ()=>{"
+          if 'ALLSTT officer face gallery patch' not in html and face_marker in html:
+              injected = "  /* ALLSTT officer face gallery patch */\\n" + face_patch + "\\n\\n" + face_marker
+              html = html.replace(face_marker, injected, 1)
+
+          # Keep the existing hard patrol-gallery guard as an additional layer.
           marker = '</body>'
           if 'ALLSTT STT hard gallery guard' not in html:
               if marker in html:
                   html = html.replace(marker, '<script>\\n' + guard + '\\n</script>\\n' + marker, 1)
               else:
                   html += '\\n<script>\\n' + guard + '\\n</script>\\n'
-              p.write_text(html, encoding='utf-8')
+
+          p.write_text(html, encoding='utf-8')
           PY
 
       - name: Build installable debug APK
