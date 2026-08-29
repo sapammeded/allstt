@@ -1,4 +1,4 @@
-name: Apply hidden face-gallery access
+name: Apply STT runtime fixes
 
 on:
   push:
@@ -16,28 +16,164 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Patch STT hidden face gallery
+      - name: Patch STT
         shell: python
         run: |
           from pathlib import Path
           import re
 
-          p = Path('stt.html')
-          s = p.read_text(encoding='utf-8')
-          marker = '/* HIDDEN_FACE_GALLERY_V2 */'
+          p=Path('stt.html')
+          s=p.read_text(encoding='utf-8')
+
+          # Remove the two older gesture patches that can compete with the new handler.
+          for sid in ('hidden-face-gallery-v2','ALLSTT-startup-camera-fix'):
+              s=re.sub(r'<script[^>]*id=["\']'+re.escape(sid)+r'["\'][^>]*>.*?</script>', '', s, flags=re.I|re.S)
+
+          marker='ALLSTT_STT_RUNTIME_FIX_V4'
           if marker in s:
-              print('Patch already present')
+              print('V4 already installed')
               raise SystemExit(0)
 
-          # Hide the old visible gallery/password UI without deleting its controls.
-          # The existing handlers remain intact; the hidden flow below drives them.
-          css = '''\n<style id="hidden-face-gallery-style">\n/* HIDDEN_FACE_GALLERY_V2 */\n#cameraGalleryPassword,\n#unlockCameraGalleryBtn,\n#cameraGalleryAccess { display:none !important; }\n</style>\n'''
-          s = s.replace('</head>', css + '</head>', 1)
+          patch=r'''
+<script id="ALLSTT-STT-RUNTIME-FIX-V4">
+/* ALLSTT_STT_RUNTIME_FIX_V4 */
+(function(){
+  'use strict';
+  function el(id){return document.getElementById(id)}
+  function put(k,v){try{localStorage.setItem(k,v)}catch(_){} }
 
-          js = r'''\n<script id="hidden-face-gallery-v2">\n/* HIDDEN_FACE_GALLERY_V2 */\n(function(){\n  function installHiddenFaceGallery(){\n    const cameraBtn = document.getElementById('openCameraMenu');\n    const nativeInput = document.getElementById('nativeCameraInput');\n    const galleryInput = document.getElementById('galleryCameraInput');\n    if (!cameraBtn || !nativeInput || !galleryInput || cameraBtn.dataset.hiddenFaceGalleryV2) return;\n    cameraBtn.dataset.hiddenFaceGalleryV2 = '1';\n\n    let timer = null;\n    let waitingSecondTap = false;\n    const DOUBLE_TAP_MS = 330;\n\n    function openCamera(){\n      nativeInput.value = '';\n      nativeInput.click();\n    }\n\n    function openProtectedGallery(){\n      const pw = window.prompt('Masukkan password:');\n      if (pw === null) return;\n      try {\n        if (typeof getGalleryPassword === 'function' && pw === getGalleryPassword()) {\n          window.galleryAccessGranted = true;\n          galleryInput.value = '';\n          galleryInput.click();\n        } else {\n          window.galleryAccessGranted = false;\n          window.alert('Password salah!');\n        }\n      } catch (e) {\n        window.galleryAccessGranted = false;\n        window.alert('Akses galeri gagal.');\n      }\n    }\n\n    // Capture phase blocks the original single-click handler until the tap\n    // is known to be a single tap or a double tap.\n    cameraBtn.addEventListener('click', function(ev){\n      ev.preventDefault();\n      ev.stopImmediatePropagation();\n\n      if (waitingSecondTap) {\n        waitingSecondTap = false;\n        if (timer) clearTimeout(timer);\n        timer = null;\n        openProtectedGallery();\n        return;\n      }\n\n      waitingSecondTap = true;\n      timer = setTimeout(function(){\n        if (!waitingSecondTap) return;\n        waitingSecondTap = false;\n        timer = null;\n        openCamera();\n      }, DOUBLE_TAP_MS);\n    }, true);\n\n    // Remove/hide any visible password card text that may be rendered by\n    // future versions, while leaving the existing gallery input functional.\n    const pw = document.getElementById('cameraGalleryPassword');\n    if (pw) {\n      const card = pw.closest('.card');\n      if (card) card.style.display = 'none';\n    }\n  }\n\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installHiddenFaceGallery);\n  else installHiddenFaceGallery();\n  window.addEventListener('load', installHiddenFaceGallery);\n})();\n</script>\n'''
-          s = s.replace('</body>', js + '</body>', 1)
-          p.write_text(s, encoding='utf-8')
-          print('Hidden double-tap face gallery patch applied')
+  // CONTINUE: works even if the main application initializer hit an exception.
+  function continueFix(){
+    const btn=el('aamiinBtn'), modal=el('notificationModal');
+    if(!btn || btn.dataset.v4Continue) return;
+    btn.dataset.v4Continue='1';
+    btn.addEventListener('click',function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if(modal) modal.style.display='none';
+      put('bangPriNotif','dilihat');
+    },true);
+  }
+
+  // HAMBURGER: independent from the large STT IIFE, so it remains usable if
+  // another feature throws an exception during startup.
+  function hamburgerFix(){
+    const btn=el('hamburgerBtn'), nav=el('sideNav'), ov=el('navOverlay');
+    if(!btn || !nav || !ov || btn.dataset.v4Hamburger) return;
+    btn.dataset.v4Hamburger='1';
+    function close(){
+      nav.classList.remove('open'); ov.classList.remove('open');
+      btn.setAttribute('aria-expanded','false');
+      const i=btn.querySelector('i'); if(i)i.className='fas fa-bars';
+    }
+    function open(){
+      nav.classList.add('open'); ov.classList.add('open');
+      btn.setAttribute('aria-expanded','true');
+      const i=btn.querySelector('i'); if(i)i.className='fas fa-xmark';
+    }
+    btn.addEventListener('click',function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      nav.classList.contains('open')?close():open();
+    },true);
+    ov.addEventListener('click',close,true);
+    nav.querySelectorAll('.nav-item').forEach(function(item){
+      item.addEventListener('click',function(e){
+        e.stopImmediatePropagation();
+        const tab=item.dataset.tab, target=item.dataset.target;
+        close();
+        if(tab && typeof window.switchToTab==='function'){window.switchToTab(tab);return;}
+        if(target){
+          const node=el(target);
+          if(node){
+            document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));
+            if(target!=='top')node.classList.add('menu-section-open');
+            if(target==='top')window.scrollTo({top:0,behavior:'smooth'});
+            else setTimeout(function(){node.scrollIntoView({behavior:'smooth',block:'start'})},50);
+          }
+        }
+      },true);
+    });
+  }
+
+  // OFFICER FACE:
+  // single tap -> camera only; fast double tap -> password -> Android image
+  // chooser (installed camera apps + gallery). Gallery is never available
+  // without the password.
+  function officerFaceFix(){
+    const btn=el('takeOfficerPhotoBtn'), cam=el('officerPhotoInput'), gal=el('officerGalleryInput');
+    if(!btn||!cam||!gal||btn.dataset.v4Face) return;
+    btn.dataset.v4Face='1';
+    let waiting=false,timer=null; const WAIT=330;
+    function cameraOnly(){cam.setAttribute('capture','user');cam.value='';cam.click()}
+    function protectedChooser(){
+      const pw=window.prompt('Masukkan password untuk kamera + galeri foto wajah:');
+      if(pw===null)return;
+      let expected=''; try{expected=typeof getGalleryPassword==='function'?getGalleryPassword():''}catch(_){}
+      if(!expected||pw!==expected){alert('❌ Password salah. Akses ditolak.');return}
+      gal.removeAttribute('capture'); gal.setAttribute('accept','image/*'); gal.value=''; gal.click();
+    }
+    btn.addEventListener('click',function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if(waiting){waiting=false;if(timer)clearTimeout(timer);timer=null;protectedChooser();return}
+      waiting=true;
+      timer=setTimeout(function(){if(!waiting)return;waiting=false;timer=null;cameraOnly()},WAIT);
+    },true);
+
+    // Direct gallery input handler for the protected officer-photo gallery path.
+    gal.addEventListener('change',async function(e){
+      const file=e.target.files&&e.target.files[0]; if(!file)return;
+      try{
+        if(typeof saveOfficerPhoto==='function') await saveOfficerPhoto(file);
+        else if(typeof window.saveOfficerPhoto==='function') await window.saveOfficerPhoto(file);
+        else {
+          const reader=new FileReader();
+          reader.onload=function(){
+            const img=el('officerPhotoPreview'),wrap=el('officerPhotoPreviewWrap'),status=el('officerPhotoStatus'),rm=el('removeOfficerPhotoBtn');
+            if(img)img.src=reader.result;if(wrap)wrap.style.display='block';if(status)status.textContent='✅ Foto wajah siap dimasukkan ke PDF.';if(rm)rm.style.display='inline-flex';
+          }; reader.readAsDataURL(file);
+        }
+      }catch(err){alert('❌ Foto galeri gagal diproses: '+(err&&err.message||err))}
+      finally{gal.value=''}
+    },true);
+  }
+
+  // PATROL AREA CAMERA uses the same single/double tap rule.
+  function patrolCameraFix(){
+    const btn=el('openCameraMenu'),cam=el('nativeCameraInput'),gal=el('galleryCameraInput');
+    if(!btn||!cam||!gal||btn.dataset.v4Patrol) return;
+    btn.dataset.v4Patrol='1';
+    let waiting=false,timer=null;const WAIT=330;
+    function ready(){
+      try{
+        const data=typeof patrolData!=='undefined'?patrolData:{};
+        if(!Object.keys(data||{}).length){alert('⚠️ Buat area dulu sebelum mengambil foto!');return false}
+        if(typeof currentTargetArea!=='undefined'&&!currentTargetArea){alert('⚠️ Pilih area terlebih dahulu!');return false}
+      }catch(_){}
+      return true;
+    }
+    function cameraOnly(){if(!ready())return;cam.setAttribute('capture','environment');cam.value='';cam.click()}
+    function protectedChooser(){
+      if(!ready())return;
+      const pw=window.prompt('Masukkan password untuk kamera + galeri:');if(pw===null)return;
+      let expected='';try{expected=typeof getGalleryPassword==='function'?getGalleryPassword():''}catch(_){}
+      if(!expected||pw!==expected){alert('❌ Password salah!');return}
+      gal.removeAttribute('capture');gal.setAttribute('accept','image/*');gal.value='';gal.click();
+    }
+    btn.addEventListener('click',function(e){
+      e.preventDefault();e.stopImmediatePropagation();
+      if(waiting){waiting=false;if(timer)clearTimeout(timer);timer=null;protectedChooser();return}
+      waiting=true;timer=setTimeout(function(){if(!waiting)return;waiting=false;timer=null;cameraOnly()},WAIT);
+    },true);
+  }
+
+  function install(){continueFix();hamburgerFix();officerFaceFix();patrolCameraFix()}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+  window.addEventListener('load',install);setTimeout(install,300);setTimeout(install,1000);
+})();
+</script>
+'''
+          s=s.replace('</body>',patch+'\n</body>',1)
+          p.write_text(s,encoding='utf-8')
+          print('STT V4 runtime patch applied')
 
       - name: Commit patch
         shell: bash
@@ -45,9 +181,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add stt.html
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "feat: hidden double-tap face gallery [skip hidden-gallery]"
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "fix: STT runtime V4 [skip hidden-gallery]"
           git push
