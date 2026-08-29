@@ -4413,24 +4413,86 @@ renderAreas();
 
 
 
+
+<script id="ALLSTT-COMPANY-IDENTITY-DUAL-SAVE">
+(function(){
+  'use strict';
+  function install(){
+    const protectedBtn=document.getElementById('saveCompanyHeaderBtn');
+    if(!protectedBtn || document.getElementById('saveCompanyIdentityNoPasswordBtn')) return;
+    const btn=document.createElement('button');
+    btn.id='saveCompanyIdentityNoPasswordBtn';
+    btn.type='button';
+    btn.className='btn btn-success';
+    btn.style.cssText='margin-top:8px;width:100%';
+    btn.innerHTML='<i class="fas fa-save"></i> SIMPAN IDENTITAS PERUSAHAAN (TANPA PASSWORD)';
+    protectedBtn.parentNode.insertBefore(btn,protectedBtn.nextSibling);
+    btn.addEventListener('click',function(){
+      const name=(document.getElementById('companyName')?.value||'').trim();
+      const address=(document.getElementById('companyAddress')?.value||'').trim();
+      try{
+        localStorage.setItem('patrol_company_name_v1',name);
+        localStorage.setItem('patrol_company_address_v1',address);
+        localStorage.setItem('ALLSTT_GLOBAL_COMPANY_IDENTITY_V1',JSON.stringify({name,address,leftLogo:localStorage.getItem('patrol_logo_left_v1')||'',rightLogo:localStorage.getItem('patrol_logo_right_v1')||''}));
+        if(typeof companyName!=='undefined') companyName=name;
+        if(typeof companyAddress!=='undefined') companyAddress=address;
+        if(window.ALLSTT_COMPANY_IDENTITY) window.ALLSTT_COMPANY_IDENTITY.name=name,window.ALLSTT_COMPANY_IDENTITY.address=address;
+        alert('✅ Nama dan alamat perusahaan berhasil disimpan tanpa password.');
+      }catch(e){ alert('❌ Gagal menyimpan identitas perusahaan: '+(e?.message||e)); }
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true}); else install();
+  window.addEventListener('load',install);
+  [300,800,1500].forEach(ms=>setTimeout(install,ms));
+})();
+</script>
 <script id="ALLSTT-STT-FACE-GALLERY-FINAL">
 (function(){
-const DOUBLE_TAP_MS=360;
-function getPw(){try{return typeof getGalleryPassword==="function"?getGalleryPassword():""}catch(_){return ""}}
-function unlock(){window.allsttGalleryUnlocked=true;try{renderAreas()}catch(_){}try{updateAreaSelector()}catch(_) {}}
-function install(){
-const face=document.getElementById("takeOfficerPhotoBtn"),cam=document.getElementById("officerPhotoInput"),gal=document.getElementById("officerGalleryInput"),section=document.getElementById("officerSection");
-if(!face||!cam||!gal||!section||face.dataset.faceFinal==="1")return;
-gal.style.display="none";gal.removeAttribute("capture");
-const old=document.getElementById("uploadOfficerGalleryBtn");if(old)old.remove();
-const btn=face.cloneNode(true);btn.dataset.faceFinal="1";face.replaceWith(btn);
-let waiting=false,timer=null;function clear(){waiting=false;if(timer){clearTimeout(timer);timer=null}}
-function camera(){clear();cam.value="";cam.setAttribute("accept","image/*");cam.setAttribute("capture","user");cam.click()}
-function gate(){clear();const entered=window.prompt("Masukkan password untuk membuka Upload Foto dari Galeri:");if(entered===null)return;if(entered!==getPw()){window.alert("Password salah. Akses galeri ditolak.");return}unlock();let g=document.getElementById("uploadOfficerGalleryBtn");if(!g){g=document.createElement("button");g.id="uploadOfficerGalleryBtn";g.type="button";g.className="btn btn-ghost";g.textContent="UPLOAD FOTO DARI GALERI";g.style.cssText="display:inline-flex;margin-top:10px;font-weight:800";section.appendChild(g)}g.onclick=()=>{gal.value="";gal.click()};window.alert("Password benar. Upload Foto dari Galeri sudah terbuka.")}
-btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(waiting){gate();return}waiting=true;timer=setTimeout(()=>{if(waiting)camera()},DOUBLE_TAP_MS)},true);
-gal.addEventListener("change",()=>{const f=gal.files&&gal.files[0];if(!f)return;try{const dt=new DataTransfer();dt.items.add(f);cam.files=dt.files;cam.dispatchEvent(new Event("change",{bubbles:true}))}catch(e){window.alert("Gagal meneruskan foto galeri: "+e.message)}finally{gal.value=""}},true);
-}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",install,{once:true});else install();window.addEventListener("load",install);[300,800,1500,2500].forEach(ms=>setTimeout(install,ms));
+  'use strict';
+  const PASSWORD_FALLBACK='mbahpritampan';
+  const DOUBLE_TAP_MS=380;
+  function expectedPassword(){try{return typeof getGalleryPassword==='function'?getGalleryPassword():PASSWORD_FALLBACK}catch(_){return PASSWORD_FALLBACK}}
+  function unlock(){window.allsttGalleryUnlocked=true;try{renderAreas()}catch(_){}try{updateAreaSelector()}catch(_){} }
+  function install(){
+    const face=document.getElementById('takeOfficerPhotoBtn');
+    const cam=document.getElementById('officerPhotoInput');
+    const gal=document.getElementById('officerGalleryInput');
+    const section=document.getElementById('officerSection');
+    if(!face||!cam||!gal||!section||face.dataset.faceFinal==='1')return;
+    const btn=face.cloneNode(true);btn.dataset.faceFinal='1';face.replaceWith(btn);
+    cam.removeAttribute('multiple');cam.setAttribute('accept','image/*');cam.setAttribute('capture','user');
+    gal.removeAttribute('capture');gal.setAttribute('accept','image/*');gal.removeAttribute('multiple');gal.style.display='none';
+    let waiting=false,timer=null;
+    function reset(){waiting=false;if(timer){clearTimeout(timer);timer=null}}
+    function openCamera(){reset();cam.value='';cam.click()}
+    function openGallery(){
+      reset();
+      if(!window.allsttGalleryUnlocked){
+        const pw=window.prompt('Masukkan password untuk membuka Upload Foto dari Galeri:');
+        if(pw===null)return;
+        if(pw!==expectedPassword()){window.alert('❌ Password salah. Akses galeri ditolak.');return}
+        unlock();
+      }
+      gal.value='';gal.click();
+    }
+    btn.addEventListener('click',function(e){
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      if(waiting){openGallery();return}
+      waiting=true;timer=setTimeout(function(){if(waiting)openCamera()},DOUBLE_TAP_MS);
+    },true);
+    btn.addEventListener('dblclick',function(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();openGallery()},true);
+    gal.addEventListener('change',async function(){
+      const file=gal.files&&gal.files[0]; if(!file)return;
+      try{
+        if(typeof saveOfficerPhoto!=='function')throw new Error('Fungsi foto wajah tidak tersedia.');
+        await saveOfficerPhoto(file);
+        const st=document.getElementById('officerPhotoStatus');if(st)st.textContent='✅ Foto wajah dari galeri siap dimasukkan ke PDF.';
+      }catch(err){window.alert('❌ Foto galeri gagal diproses: '+(err?.message||err))}
+      finally{gal.value=''}
+    },true);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+  window.addEventListener('load',install);[300,800,1500,2500].forEach(ms=>setTimeout(install,ms));
 })();
 </script>
 </body>
