@@ -32,7 +32,6 @@ jobs:
           s = p.read_text(encoding='utf-8')
           s = s.replace('accept="image/*" capture="environment"', 'accept="image/*"')
           s = s.replace('accept="image/*" capture="user"', 'accept="image/*"')
-
           storage_patch = r'''
           // ALLSTT WebView storage compatibility patch
           function allsttDataUrlToBlob(dataUrl){
@@ -72,16 +71,10 @@ jobs:
           old2 = "const blob = await (await fetch(comp)).blob();\n                    key = 'b_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);\n                    await idbPut(STORE_BLOBS, key, blob);\n                    await idbPut(STORE_META, key, { name: f.name, ts: new Date().toISOString() });\n                    patrolData[k].photos.push({ ref:key });"
           new2 = "key = await allsttStorePhotoBlob(comp, f.name);\n                    patrolData[k].photos.push({ref:key});"
           s = s.replace(old2, new2, 1)
-
-          # Fix the protected face-gallery patch: its final handler is outside
-          # the main IIFE, so expose the existing officer-photo pipeline globally.
-          bridge_marker = '  document.getElementById(\'takeOfficerPhotoBtn\')?.addEventListener(\'click\', ()=>{'
-          if bridge_marker in s and 'window.saveOfficerPhoto = saveOfficerPhoto;' not in s:
-              s = s.replace(bridge_marker, '  window.saveOfficerPhoto = saveOfficerPhoto;\n\n' + bridge_marker, 1)
-
           patch = Path('android-download-bridge.js').read_text(encoding='utf-8')
           face_patch = Path('stt-face-gallery-patch.js').read_text(encoding='utf-8')
-          s = s.replace('</body>', '<script>\n' + patch + '\n</script>\n<script>\n' + face_patch + '\n</script>\n</body>')
+          hotfix = Path('stt-hotfix.js').read_text(encoding='utf-8')
+          s = s.replace('</body>', '<script>\n' + patch + '\n</script>\n<script>\n' + face_patch + '\n</script>\n<script>\n' + hotfix + '\n</script>\n</body>')
           p.write_text(s, encoding='utf-8')
           PY
           cp stt.html app/src/main/assets/stt.html
