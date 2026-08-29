@@ -1173,6 +1173,27 @@ header .subtitle{font-size:1rem}
 }
 
 </style>
+
+<style id="ALLSTT premium letterhead editor">
+#companySection {
+  background: linear-gradient(145deg,#ffffff,#f8fbff);
+  border: 1px solid #dbe5f0;
+  border-left: 6px solid #0b3d91;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 10px 28px rgba(15,23,42,.10);
+}
+#companySection > label:first-child {
+  display:block;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: .3px;
+  color:#0b3d91;
+  text-transform: none;
+}
+#companySection .small { line-height:1.55; }
+#companySection input, #companySection textarea { font-size:16px; }
+</style>
 </head>
 <body>
 
@@ -1292,20 +1313,10 @@ header .subtitle{font-size:1rem}
           <input id="companyName" type="text" placeholder="Contoh: PT. NAMA PERUSAHAAN"
                  style="width:100%;padding:12px 15px;border:2px solid #e2e8f0;border-radius:10px;">
         </div>
-        <div class="col">
-          <label class="small">EMAIL PERUSAHAAN</label>
-          <input id="companyEmail" type="email" placeholder="email@perusahaan.com"
-                 style="width:100%;padding:12px 15px;border:2px solid #e2e8f0;border-radius:10px;">
-        </div>
-      </div>
+</div>
 
       <div class="row" style="margin-top:12px">
-        <div class="col">
-          <label class="small">TELEPON / HOTLINE</label>
-          <input id="companyPhone" type="text" placeholder="021-xxxxxxx / 08xxxxxxxxxx"
-                 style="width:100%;padding:12px 15px;border:2px solid #e2e8f0;border-radius:10px;">
-        </div>
-        <div class="col">
+<div class="col">
           <label class="small">ALAMAT PERUSAHAAN</label>
           <textarea id="companyAddress" rows="2" placeholder="Alamat lengkap perusahaan..."
                     style="width:100%;padding:12px 15px;border:2px solid #e2e8f0;border-radius:10px;resize:vertical;"></textarea>
@@ -3777,22 +3788,25 @@ function setupSuperCleanup() {
 
       // Official letterhead center block.
       pdf.setFont('helvetica','bold');
-      pdf.setFontSize(13.5);
+      pdf.setFontSize(16);
       pdf.setTextColor(...BLUE);
       pdf.text(companyName || 'NAMA PERUSAHAAN',W/2,20,{align:'center'});
 
       pdf.setFont('helvetica','normal');
-      pdf.setFontSize(7.5);
+      pdf.setFontSize(8.5);
       pdf.setTextColor(...TEXT);
       const addressLines = pdf.splitTextToSize(companyAddress || 'ALAMAT PERUSAHAAN', 92);
       pdf.text(addressLines, W/2, 26, {align:'center'});
-      const contactY = 26 + (addressLines.length * 3.2) + 1.5;
-      pdf.text(`Telp: ${companyPhone || '—'}  |  Email: ${companyEmail || '—'}`,W/2,contactY,{align:'center'});
+      const contactY = 26 + (addressLines.length * 3.2) + 2;
+      pdf.setFont('helvetica','bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(...BLUE);
+      pdf.text('SECURITY PATROL & INCIDENT DOCUMENTATION',W/2,contactY,{align:'center'});
 
       pdf.setFont('helvetica','bold');
-      pdf.setFontSize(15.5);
+      pdf.setFontSize(18);
       pdf.setTextColor(...TEXT);
-      pdf.text('LAPORAN PATROLI SECURITY',W/2,48,{align:'center'});
+      pdf.text('LAPORAN PATROLI SECURITY',W/2,50,{align:'center'});
 
       // Report identity block.
       const metaY = 64;
@@ -3939,7 +3953,7 @@ function setupSuperCleanup() {
           pdf.setTextColor(...TEXT);
           pdf.text(`Foto ${i+1}`,rightX+4,y+15);
 
-          const desc = String(area.descriptions?.[i] || 'TERKENDALI AMAN').trim() || 'TERKENDALI AMAN';
+          const desc = String(area.descriptions?.[i] || DEFAULT_PATROL_DESCRIPTION).trim() || DEFAULT_PATROL_DESCRIPTION;
           pdf.setFontSize(9);
           pdf.setTextColor(...TEXT);
           const dl = pdf.splitTextToSize(desc,rightW-8);
@@ -4021,7 +4035,11 @@ function setupSuperCleanup() {
         footer();
       }
 
-      const filename = `Laporan_Patroli_${safe(petugas)}_${safe(tanggal)}.pdf`;
+      const filenameDate = /^\d{4}-\d{2}-\d{2}$/.test(tanggal)
+        ? tanggal.split('-').reverse().join('-')
+        : safe(tanggal || new Date().toISOString().slice(0,10));
+      const filenameShift = safe((document.getElementById('shift')?.value || shift || '').trim()).replace(/_+/g,'_') || 'SHIFT';
+      const filename = `${safe(petugas || 'Petugas')}_${filenameDate}_${filenameShift}.pdf`;
       const blob = pdf.output('blob');
 
       // Always download first, then sync the exact same PDF to the configured cloud queue.
