@@ -14,10 +14,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER = 1001;
     private static final int PERMISSIONS = 1002;
@@ -47,79 +43,43 @@ public class MainActivity extends Activity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
-
         webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return false;
-            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return false; }
         });
-
         webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> callback, FileChooserParams params) {
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = callback;
-                try {
-                    Intent chooser = params.createIntent();
-                    startActivityForResult(chooser, FILE_CHOOSER);
-                } catch (Exception e) {
-                    fileCallback = null;
-                    callback.onReceiveValue(null);
-                }
+                try { startActivityForResult(params.createIntent(), FILE_CHOOSER); }
+                catch (Exception e) { fileCallback = null; callback.onReceiveValue(null); }
                 return true;
             }
-
-            @Override
-            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    callback.invoke(origin, true, false);
-                } else {
-                    ActivityCompat.requestPermissions(MainActivity.this,
-                            new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
-                            PERMISSIONS);
-                    callback.invoke(origin, true, false);
-                }
+            @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) callback.invoke(origin, true, false);
+                else { requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSIONS); callback.invoke(origin, true, false); }
             }
         });
     }
 
     private void requestRuntimePermissions() {
         java.util.ArrayList<String> missing = new java.util.ArrayList<>();
-        String[] permissions = {
-                Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-        };
-        for (String p : permissions) {
-            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
-        }
-        if (!missing.isEmpty()) ActivityCompat.requestPermissions(this, missing.toArray(new String[0]), PERMISSIONS);
+        String[] permissions = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION };
+        for (String p : permissions) if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
+        if (!missing.isEmpty()) requestPermissions(missing.toArray(new String[0]), PERMISSIONS);
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == FILE_CHOOSER && fileCallback != null) {
-            Uri[] results = null;
-            if (resultCode == RESULT_OK && data != null) {
-                if (data.getClipData() != null) {
-                    int n = data.getClipData().getItemCount();
-                    results = new Uri[n];
-                    for (int i = 0; i < n; i++) results[i] = data.getClipData().getItemAt(i).getUri();
-                } else if (data.getData() != null) {
-                    results = new Uri[]{data.getData()};
-                }
-            }
-            fileCallback.onReceiveValue(results);
-            fileCallback = null;
+        if (requestCode != FILE_CHOOSER || fileCallback == null) return;
+        Uri[] results = null;
+        if (resultCode == RESULT_OK && data != null) {
+            if (data.getClipData() != null) {
+                int n = data.getClipData().getItemCount(); results = new Uri[n];
+                for (int i = 0; i < n; i++) results[i] = data.getClipData().getItemAt(i).getUri();
+            } else if (data.getData() != null) results = new Uri[]{data.getData()};
         }
+        fileCallback.onReceiveValue(results); fileCallback = null;
     }
 
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
-    }
+    @Override public void onBackPressed() { if (webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
 }
