@@ -10,15 +10,15 @@ permissions:
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Patch STT officer photo gallery
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           p = Path('stt.html')
           s = p.read_text(encoding='utf-8')
@@ -104,6 +104,7 @@ jobs:
           s = s.replace(old_js, new_js, 1)
 
           p.write_text(s, encoding='utf-8')
+          PY
 
       - name: Commit STT patch
         run: |
