@@ -1,0 +1,1 @@
+Build trigger for the current patched STT, HVSS2 and VACS sources.
