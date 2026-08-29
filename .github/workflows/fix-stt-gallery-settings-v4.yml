@@ -1,11 +1,32 @@
 name: Fix STT gallery and company settings
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'apply_gallery_fix.py'
+      - '.github/workflows/fix-stt-gallery-settings-v4.yml'
 permissions:
   contents: write
 jobs:
-  patch-and-build:
+  patch-and-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Manual-only legacy workflow"
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply STT fixes
+        run: python apply_gallery_fix.py
+      - name: Commit patched STT
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add stt.html
+          if git diff --cached --quiet; then
+            echo 'No STT changes needed.'
+          else
+            git commit -m 'fix: gallery unlock and company identity dual save'
+            git push
+          fi
