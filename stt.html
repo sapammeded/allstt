@@ -1470,7 +1470,7 @@ header .subtitle{font-size:1rem}
               <h4>KELOLA FOTO & DESKRIPSI</h4>
               <p>Klik thumbnail foto untuk menambah deskripsi. Tekan lama (long press) untuk hapus foto.</p>
               <div class="guide-tip">
-                <i class="fas fa-lightbulb"></i> <strong>Tip:</strong> Jika deskripsi dikosongkan, otomatis terisi "TERKENDALI AMAN".
+                <i class="fas fa-lightbulb"></i> <strong>Tip:</strong> Jika deskripsi dikosongkan, otomatis terisi keterangan standar patroli.
               </div>
             </div>
           </div>
@@ -1731,7 +1731,7 @@ header .subtitle{font-size:1rem}
       <i class="fas fa-eye"></i> Preview: klik thumbnail untuk deskripsi panjang atau tekan-hold untuk hapus.
     </div>
     <div class="quality-notice" style="margin-top:12px">
-      <i class="fas fa-lightbulb"></i> <strong>Deskripsi otomatis:</strong> Jika dikosongkan akan terisi "TERKENDALI AMAN"
+      <i class="fas fa-lightbulb"></i> <strong>Deskripsi otomatis:</strong> Jika dikosongkan akan terisi keterangan standar patroli otomatis
     </div>
   </div>
 
@@ -1758,7 +1758,7 @@ header .subtitle{font-size:1rem}
 // GANTI URL LOGO DEFAULT DI SINI:
 const DEFAULT_LOGO_URL = "https://i.ibb.co.com/dJV2bjQR/IMG-20251123-001741.png";
 
-const DEFAULT_PATROL_DESCRIPTION = 'Kegiatan patroli area penjagaan telah selesai dilaksanakan dengan hasil situasi terpantau aman dan kondusif, temuan menonjol serta kendala operasional nihil.';
+const DEFAULT_PATROL_DESCRIPTION = 'Kegiatan patroli area tersebut telah selesai dilaksanakan dengan hasil situasi terpantau terkendali aman dan kondusif, temuan menonjol serta kendala operasional nihil';
 
 // PASSWORD SYSTEM
 const DEFAULT_GALLERY_PASSWORD = "supangat505"; // Password awal galeri
@@ -3756,7 +3756,7 @@ function setupSuperCleanup() {
       // Thin corporate rule.
       pdf.setDrawColor(...BLUE);
       pdf.setLineWidth(1.1);
-      pdf.line(M,headerH+7,W-M,headerH+7);
+      pdf.line(M,45,W-M,45);
 
       // Two logo boxes use EXACTLY the same dimensions.
       pdf.setDrawColor(...LINE);
@@ -3806,10 +3806,10 @@ function setupSuperCleanup() {
       pdf.setFont('helvetica','bold');
       pdf.setFontSize(18);
       pdf.setTextColor(...TEXT);
-      pdf.text('LAPORAN PATROLI SECURITY',W/2,50,{align:'center'});
+      pdf.text('LAPORAN PATROLI SECURITY',W/2,56,{align:'center'});
 
       // Report identity block.
-      const metaY = 64;
+      const metaY = 69;
       pdf.setFillColor(...PANEL);
       pdf.roundedRect(M,metaY,W-2*M,20,2,2,'F');
 
@@ -3827,7 +3827,7 @@ function setupSuperCleanup() {
 
       // ==================== OFFICER PORTRAIT ====================
       const portraitX = 50;
-      const portraitY = 91;
+      const portraitY = 96;
       const portraitW = W-100;
       const portraitH = 116;
 
@@ -4038,8 +4038,10 @@ function setupSuperCleanup() {
       const filenameDate = /^\d{4}-\d{2}-\d{2}$/.test(tanggal)
         ? tanggal.split('-').reverse().join('-')
         : safe(tanggal || new Date().toISOString().slice(0,10));
-      const filenameShift = safe((document.getElementById('shift')?.value || shift || '').trim()).replace(/_+/g,'_') || 'SHIFT';
-      const filename = `${safe(petugas || 'Petugas')}_${filenameDate}_${filenameShift}.pdf`;
+      const rawShift = String(document.getElementById('shift')?.value || '').trim();
+      const filenameShift = safe(rawShift.toUpperCase()).replace(/_+/g,'_') || 'SHIFT';
+      const filenameOfficer = safe(petugas || 'Petugas').replace(/_+/g,'_');
+      const filename = `${filenameOfficer}_${filenameDate}_${filenameShift}.pdf`;
       const blob = pdf.output('blob');
 
       // Always download first, then sync the exact same PDF to the configured cloud queue.
