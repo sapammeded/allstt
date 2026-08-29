@@ -30,12 +30,9 @@ jobs:
           from pathlib import Path
           p = Path('stt.html')
           s = p.read_text(encoding='utf-8')
-
-          # Android/WebView camera: let Android choose the available camera provider.
           s = s.replace('accept="image/*" capture="environment"', 'accept="image/*"')
           s = s.replace('accept="image/*" capture="user"', 'accept="image/*"')
 
-          # file:// WebView cannot reliably fetch(data:...) in every Android WebView.
           storage_patch = r'''
           // ALLSTT WebView storage compatibility patch
           function allsttDataUrlToBlob(dataUrl){
@@ -84,7 +81,6 @@ jobs:
           cp stt.html app/src/main/assets/stt.html
           cp hvss2.html app/src/main/assets/hvss2.html
           cp vacs.html app/src/main/assets/vacs.html
-          cp launcher.html app/src/main/assets/launcher.html
 
       - name: Build installable debug APK
         run: gradle :app:assembleDebug --no-daemon
