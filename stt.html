@@ -4368,122 +4368,22 @@ renderAreas();
 
 <script id="ALLSTT-STT-FACE-GALLERY-FINAL">
 (function(){
-  'use strict';
-  const PASSWORD='mbahpritampan';
-  const DOUBLE_TAP_MS=380;
-
-  function expectedPassword(){
-    try { return typeof getGalleryPassword==='function' ? getGalleryPassword() : PASSWORD; }
-    catch(_) { return PASSWORD; }
-  }
-
-  function unlockPatrolGallery(){
-    // This session flag is consumed by the existing STT render/change logic.
-    // It is never persisted, so the password is required again on a new session.
-    window.allsttGalleryUnlocked=true;
-    try { if(typeof renderAreas==='function') renderAreas(); } catch(_) {}
-    try { if(typeof updateAreaSelector==='function') updateAreaSelector(); } catch(_) {}
-  }
-
-  function install(){
-    const face=document.getElementById('takeOfficerPhotoBtn');
-    const cam=document.getElementById('officerPhotoInput');
-    const gal=document.getElementById('officerGalleryInput');
-    if(!face || !cam || !gal || face.dataset.faceFinal==='1') return;
-    face.dataset.faceFinal='1';
-
-    // No standalone gallery/password card is visible before the protected gesture.
-    ['officerGalleryAccess','officerGalleryPassword','unlockOfficerGalleryBtn','uploadOfficerGalleryBtn'].forEach(function(id){
-      const el=document.getElementById(id);
-      if(el){
-        const card=el.closest('.card');
-        if(card && card!==face.closest('.card')) card.remove();
-        else el.remove();
-      }
-    });
-
-    // Clone removes every legacy face-button handler so one tap and two taps
-    // have exactly one deterministic meaning.
-    const btn=face.cloneNode(true);
-    btn.dataset.faceFinal='1';
-    face.replaceWith(btn);
-
-    cam.removeAttribute('multiple');
-    cam.setAttribute('accept','image/*');
-    gal.removeAttribute('capture');
-    gal.setAttribute('accept','image/*');
-    gal.removeAttribute('multiple');
-    gal.style.display='none';
-
-    let pending=false;
-    let timer=null;
-    function reset(){
-      pending=false;
-      if(timer){clearTimeout(timer);timer=null;}
-    }
-
-    function openCamera(){
-      reset();
-      cam.setAttribute('capture','user');
-      cam.value='';
-      cam.click();
-    }
-
-    function openProtectedGallery(){
-      reset();
-      const pw=window.prompt('Masukkan password mbahpritampan untuk upload foto wajah dari galeri:');
-      if(pw===null) return;
-      if(pw!==expectedPassword()){
-        window.alert('❌ Password salah. Akses galeri ditolak.');
-        return;
-      }
-      unlockPatrolGallery();
-      gal.value='';
-      gal.removeAttribute('capture');
-      gal.setAttribute('accept','image/*');
-      gal.click();
-    }
-
-    // 1x tap -> camera. Wait briefly so a second fast tap can be detected.
-    btn.addEventListener('click',function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      if(pending){ openProtectedGallery(); return; }
-      pending=true;
-      timer=setTimeout(function(){ if(pending) openCamera(); },DOUBLE_TAP_MS);
-    },true);
-
-    // Native dblclick fallback for Android WebView/browser gesture handling.
-    btn.addEventListener('dblclick',function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      openProtectedGallery();
-    },true);
-
-    // Gallery photo uses the same original officer-photo pipeline.
-    gal.addEventListener('change',async function(){
-      const file=gal.files && gal.files[0];
-      if(!file) return;
-      try{
-        if(typeof saveOfficerPhoto==='function') await saveOfficerPhoto(file);
-        else if(typeof window.saveOfficerPhoto==='function') await window.saveOfficerPhoto(file);
-        else throw new Error('Fungsi penyimpanan foto wajah tidak tersedia.');
-        const st=document.getElementById('officerPhotoStatus');
-        if(st) st.textContent='✅ Foto wajah dari galeri siap dimasukkan ke PDF.';
-      }catch(err){
-        window.alert('❌ Foto galeri gagal diproses: '+(err && err.message ? err.message : err));
-      }finally{
-        gal.value='';
-      }
-    },true);
-  }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true});
-  else install();
-  window.addEventListener('load',install);
-  [300,800,1500,2500].forEach(function(ms){setTimeout(install,ms);});
+const DOUBLE_TAP_MS=360;
+function getPw(){try{return typeof getGalleryPassword==="function"?getGalleryPassword():""}catch(_){return ""}}
+function unlock(){window.allsttGalleryUnlocked=true;try{renderAreas()}catch(_){}try{updateAreaSelector()}catch(_) {}}
+function install(){
+const face=document.getElementById("takeOfficerPhotoBtn"),cam=document.getElementById("officerPhotoInput"),gal=document.getElementById("officerGalleryInput"),section=document.getElementById("officerSection");
+if(!face||!cam||!gal||!section||face.dataset.faceFinal==="1")return;
+gal.style.display="none";gal.removeAttribute("capture");
+const old=document.getElementById("uploadOfficerGalleryBtn");if(old)old.remove();
+const btn=face.cloneNode(true);btn.dataset.faceFinal="1";face.replaceWith(btn);
+let waiting=false,timer=null;function clear(){waiting=false;if(timer){clearTimeout(timer);timer=null}}
+function camera(){clear();cam.value="";cam.setAttribute("accept","image/*");cam.setAttribute("capture","user");cam.click()}
+function gate(){clear();const entered=window.prompt("Masukkan password untuk membuka Upload Foto dari Galeri:");if(entered===null)return;if(entered!==getPw()){window.alert("Password salah. Akses galeri ditolak.");return}unlock();let g=document.getElementById("uploadOfficerGalleryBtn");if(!g){g=document.createElement("button");g.id="uploadOfficerGalleryBtn";g.type="button";g.className="btn btn-ghost";g.textContent="UPLOAD FOTO DARI GALERI";g.style.cssText="display:inline-flex;margin-top:10px;font-weight:800";section.appendChild(g)}g.onclick=()=>{gal.value="";gal.click()};window.alert("Password benar. Upload Foto dari Galeri sudah terbuka.")}
+btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(waiting){gate();return}waiting=true;timer=setTimeout(()=>{if(waiting)camera()},DOUBLE_TAP_MS)},true);
+gal.addEventListener("change",()=>{const f=gal.files&&gal.files[0];if(!f)return;try{const dt=new DataTransfer();dt.items.add(f);cam.files=dt.files;cam.dispatchEvent(new Event("change",{bubbles:true}))}catch(e){window.alert("Gagal meneruskan foto galeri: "+e.message)}finally{gal.value=""}},true);
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",install,{once:true});else install();window.addEventListener("load",install);[300,800,1500,2500].forEach(ms=>setTimeout(install,ms));
 })();
 </script>
 </body>
