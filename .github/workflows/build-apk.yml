@@ -73,6 +73,12 @@ jobs:
           new2 = "key = await allsttStorePhotoBlob(comp, f.name);\n                    patrolData[k].photos.push({ref:key});"
           s = s.replace(old2, new2, 1)
 
+          # Fix the protected face-gallery patch: its final handler is outside
+          # the main IIFE, so expose the existing officer-photo pipeline globally.
+          bridge_marker = '  document.getElementById(\'takeOfficerPhotoBtn\')?.addEventListener(\'click\', ()=>{'
+          if bridge_marker in s and 'window.saveOfficerPhoto = saveOfficerPhoto;' not in s:
+              s = s.replace(bridge_marker, '  window.saveOfficerPhoto = saveOfficerPhoto;\n\n' + bridge_marker, 1)
+
           patch = Path('android-download-bridge.js').read_text(encoding='utf-8')
           face_patch = Path('stt-face-gallery-patch.js').read_text(encoding='utf-8')
           s = s.replace('</body>', '<script>\n' + patch + '\n</script>\n<script>\n' + face_patch + '\n</script>\n</body>')
