@@ -28,6 +28,8 @@ import android.util.Base64;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER = 4101;
@@ -62,9 +64,6 @@ public class MainActivity extends Activity {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = callback;
 
-                // IMPORTANT: capture-enabled inputs are camera inputs. Use a chooser
-                // containing only ACTION_IMAGE_CAPTURE apps, so Gallery is never shown
-                // when the user presses KAMERA HP. Normal file inputs keep the picker.
                 if (params.isCaptureEnabled()) {
                     Intent cameraOnly = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                     if (cameraOnly.resolveActivity(getPackageManager()) == null) {
@@ -75,22 +74,17 @@ public class MainActivity extends Activity {
                     }
 
                     pendingCameraUri = createCameraUri();
-                    if (pendingCameraUri != null) {
-                        cameraOnly.putExtra(MediaStore.EXTRA_OUTPUT, pendingCameraUri);
-                    }
+                    if (pendingCameraUri != null) cameraOnly.putExtra(MediaStore.EXTRA_OUTPUT, pendingCameraUri);
                     cameraOnly.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 
-                    if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
                         requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION);
-                    }
 
                     try {
                         Intent chooser = Intent.createChooser(cameraOnly, "Pilih aplikasi kamera");
                         startActivityForResult(chooser, FILE_CHOOSER);
                     } catch (ActivityNotFoundException e) {
-                        if (pendingCameraUri != null) {
-                            try { getContentResolver().delete(pendingCameraUri, null, null); } catch (Exception ignored) {}
-                        }
+                        if (pendingCameraUri != null) try { getContentResolver().delete(pendingCameraUri, null, null); } catch (Exception ignored) {}
                         pendingCameraUri = null;
                         fileCallback.onReceiveValue(null);
                         fileCallback = null;
@@ -142,17 +136,54 @@ public class MainActivity extends Activity {
 
     private void handleWebDownload(String url, String contentDisposition, String mimeType) {
         if (url == null || url.isEmpty()) return;
-        String filename = "ALLSTT_Download";
-        if (contentDisposition != null) {
-            int p = contentDisposition.indexOf("filename=");
-            if (p >= 0) {
-                filename = contentDisposition.substring(p + 9).replace("\"", "").trim();
-            }
+
+        String filename = extractFilename(contentDisposition);
+        boolean defaultName = filename == null || filename.isEmpty();
+        if (defaultName) filename = "ALLSTT_Download";
+
+        if (defaultName && mimeType != null && mimeType.toLowerCase().contains("pdf")) {
+            final String downloadUrl = url;
+            final String downloadMime = mimeType;
+            final String cd = contentDisposition;
+            webView.evaluateJavascript(
+                "(function(){try{" +
+                "const p=(document.getElementById('petugasName')?.value||'Petugas').trim();" +
+                "const s=(document.getElementById('shift')?.value||'SHIFT').trim().toUpperCase();" +
+                "const d=document.getElementById('tanggal')?.value||'';" +
+                "const ds=/^\\d{4}-\\d{2}-\\d{2}$/.test(d)?d.split('-').reverse().join('-'):'';" +
+                "const safe=v=>String(v||'').replace(/[\\\\/:*?\"<>|]/g,'-').replace(/\\s+/g,'_').slice(0,80);" +
+                "return encodeURIComponent(safe(p)+'_'+(ds||''+new Date().getDate().toString().padStart(2,'0')+'-'+(new Date().getMonth()+1).toString().padStart(2,'0')+'-'+new Date().getFullYear())+'_'+(safe(s)||'SHIFT')+'.pdf');" +
+                "}catch(e){return 'Petugas_SHIFT.pdf';}})()",
+                value -> {
+                    String resolved = "Petugas_SHIFT.pdf";
+                    try {
+                        if (value != null) {
+                            String raw = value;
+                            if (raw.startsWith("\"") && raw.endsWith("\"")) raw = raw.substring(1, raw.length()-1);
+                            resolved = URLDecoder.decode(raw, StandardCharsets.UTF_8.name());
+                        }
+                    } catch (Exception ignored) {}
+                    handleWebDownloadResolved(downloadUrl, cd, downloadMime, resolved);
+                }
+            );
+            return;
         }
-        if (filename.equals("ALLSTT_Download") && mimeType != null) {
-            String ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
-            if (ext != null && !ext.isEmpty()) filename += "." + ext;
-        }
+
+        handleWebDownloadResolved(url, contentDisposition, mimeType, filename);
+    }
+
+    private String extractFilename(String contentDisposition) {
+        if (contentDisposition == null) return null;
+        int p = contentDisposition.indexOf("filename=");
+        if (p < 0) return null;
+        String name = contentDisposition.substring(p + 9).replace("\"", "").trim();
+        return name.isEmpty() ? null : name;
+    }
+
+    private void handleWebDownloadResolved(String url, String contentDisposition, String mimeType, String filename) {
+        if (filename == null || filename.isEmpty()) filename = "ALLSTT_Download";
+        filename = filename.replaceAll("[\\\\/:*?\"<>|]", "_");
+        if (!filename.toLowerCase().endsWith(".pdf") && mimeType != null && mimeType.toLowerCase().contains("pdf")) filename += ".pdf";
 
         if (url.startsWith("blob:")) {
             final String safeUrl = org.json.JSONObject.quote(url);
