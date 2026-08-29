@@ -4,6 +4,7 @@ import re
 p = Path('stt.html')
 s = p.read_text(encoding='utf-8')
 
+# Remove all previous injected face handlers so only this controller remains.
 for sid in [
     'ALLSTT-STT-FACE-GALLERY-V7',
     'ALLSTT-STT-RUNTIME-FIX-V5',
@@ -12,6 +13,12 @@ for sid in [
     'ALLSTT-STT-FACE-GALLERY-FINAL',
 ]:
     s = re.sub(r'<script[^>]*id=["\\\']' + re.escape(sid) + r'["\\\'][^>]*>.*?</script>', '', s, flags=re.I | re.S)
+
+# The original app keeps galleryAccessGranted inside its main async closure.
+# Add a session flag that the existing render/change logic can safely consult.
+s = s.replace('galleryAccessGranted ?', '(galleryAccessGranted || window.allsttGalleryUnlocked) ?')
+s = s.replace('if (!galleryAccessGranted)', 'if (!(galleryAccessGranted || window.allsttGalleryUnlocked))')
+s = s.replace('if(!galleryAccessGranted)', 'if(!(galleryAccessGranted || window.allsttGalleryUnlocked))')
 
 patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-FINAL">
 (function(){
@@ -25,18 +32,11 @@ patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-FINAL">
   }
 
   function unlockPatrolGallery(){
-    // Reuse the original unlock handler so its private galleryAccessGranted
-    // variable is actually changed and renderAreas() creates the existing
-    // multi-photo gallery controls in every patrol area.
-    const input=document.getElementById('cameraGalleryPassword');
-    const unlock=document.getElementById('unlockCameraGalleryBtn');
-    if(input && unlock){
-      input.value=expectedPassword();
-      unlock.click();
-      return;
-    }
-    try { window.galleryAccessGranted=true; } catch(_) {}
+    // This session flag is consumed by the existing STT render/change logic.
+    // It is never persisted, so the password is required again on a new session.
+    window.allsttGalleryUnlocked=true;
     try { if(typeof renderAreas==='function') renderAreas(); } catch(_) {}
+    try { if(typeof updateAreaSelector==='function') updateAreaSelector(); } catch(_) {}
   }
 
   function install(){
@@ -46,7 +46,7 @@ patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-FINAL">
     if(!face || !cam || !gal || face.dataset.faceFinal==='1') return;
     face.dataset.faceFinal='1';
 
-    // No standalone gallery card/menu is visible before the protected gesture.
+    // No standalone gallery/password card is visible before the protected gesture.
     ['officerGalleryAccess','officerGalleryPassword','unlockOfficerGalleryBtn','uploadOfficerGalleryBtn'].forEach(function(id){
       const el=document.getElementById(id);
       if(el){
@@ -56,7 +56,8 @@ patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-FINAL">
       }
     });
 
-    // Clone removes all legacy click/double-click handlers from the button.
+    // Clone removes every legacy face-button handler so one tap and two taps
+    // have exactly one deterministic meaning.
     const btn=face.cloneNode(true);
     btn.dataset.faceFinal='1';
     face.replaceWith(btn);
@@ -97,6 +98,7 @@ patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-FINAL">
       gal.click();
     }
 
+    // 1x tap -> camera. Wait briefly so a second fast tap can be detected.
     btn.addEventListener('click',function(e){
       e.preventDefault();
       e.stopPropagation();
@@ -106,6 +108,7 @@ patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-FINAL">
       timer=setTimeout(function(){ if(pending) openCamera(); },DOUBLE_TAP_MS);
     },true);
 
+    // Native dblclick fallback for Android WebView/browser gesture handling.
     btn.addEventListener('dblclick',function(e){
       e.preventDefault();
       e.stopPropagation();
@@ -113,6 +116,7 @@ patch = r'''<script id="ALLSTT-STT-FACE-GALLERY-FINAL">
       openProtectedGallery();
     },true);
 
+    // Gallery photo uses the same original officer-photo pipeline.
     gal.addEventListener('change',async function(){
       const file=gal.files && gal.files[0];
       if(!file) return;
