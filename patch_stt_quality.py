@@ -38,8 +38,6 @@ new_filename = """const filenameDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(tanggal)\n 
 s = s.replace(old_filename, new_filename)
 
 # Password-protected officer photo gallery upload.
-# The existing camera capture button remains unchanged. Gallery access is session-only
-# and reuses the existing getGalleryPassword() password system.
 officer_html_marker = '<input id="officerPhotoInput" type="file" accept="image/*" capture="user" style="display:none">'
 officer_html_add = '''<input id="officerPhotoInput" type="file" accept="image/*" capture="user" style="display:none">
         <input id="officerGalleryInput" type="file" accept="image/*" multiple style="display:none">
@@ -102,7 +100,6 @@ officer_js_add = '''  document.getElementById('takeOfficerPhotoBtn')?.addEventLi
     }
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reuse the existing officer-photo processing pipeline so preview/PDF behavior is unchanged.
     const cameraInput = document.getElementById('officerPhotoInput');
     try {
       const dt = new DataTransfer();
@@ -121,7 +118,7 @@ if 'id="uploadOfficerGalleryBtn"' not in s:
         raise SystemExit('Officer camera handler marker not found')
     s = s.replace(officer_js_marker, officer_js_add, 1)
 
-# Robust autosave/recovery. Additive: preserves existing patrolData + IndexedDB photo storage.
+# Robust autosave/recovery.
 autosave_patch = r'''
 <!-- ALLSTT ROBUST AUTOSAVE V2 -->
 <script id="ALLSTT-robust-autosave">
@@ -177,5 +174,77 @@ autosave_patch = r'''
 if 'id="ALLSTT-robust-autosave"' not in s:
     s = s.replace('</body>', autosave_patch + '\n</body>', 1)
 
+# Hard runtime recovery for the startup modal. This is intentionally independent
+# of localStorage so a WebView storage error cannot strand the user on LANJUTKAN.
+startup_fix = r'''
+<!-- ALLSTT STARTUP + FACE CAMERA DOUBLE-TAP FIX -->
+<script id="ALLSTT-startup-camera-fix">
+(function(){
+  'use strict';
+  function install(){
+    const modal=document.getElementById('notificationModal');
+    const btn=document.getElementById('aamiinBtn');
+    if(btn && !btn.dataset.allsttContinueFix){
+      btn.dataset.allsttContinueFix='1';
+      btn.addEventListener('click',function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(modal) modal.style.display='none';
+        try{localStorage.setItem('bangPriNotif','dilihat')}catch(_){ }
+      },true);
+    }
+
+    const cameraBtn=document.getElementById('openCameraMenu');
+    const nativeInput=document.getElementById('nativeCameraInput');
+    const galleryInput=document.getElementById('galleryCameraInput');
+    if(!cameraBtn || !nativeInput || cameraBtn.dataset.allsttCameraFix) return;
+    cameraBtn.dataset.allsttCameraFix='1';
+
+    let timer=null, waiting=false;
+    const DOUBLE_TAP_MS=330;
+    function openCamera(){
+      nativeInput.value='';
+      nativeInput.click();
+    }
+    function password(){
+      const pw=window.prompt('Masukkan password galeri foto wajah:');
+      if(pw===null) return false;
+      let expected='';
+      try{ expected=(typeof getGalleryPassword==='function') ? getGalleryPassword() : ''; }catch(_){ expected=''; }
+      if(!expected || pw!==expected){ window.alert('❌ Password salah!'); return false; }
+      return true;
+    }
+    function openCameraGalleryChooser(){
+      if(!password()) return;
+      // No capture attribute: Android/WebView can present the available camera
+      // providers together with the gallery/file picker.
+      if(galleryInput){
+        galleryInput.removeAttribute('capture');
+        galleryInput.value='';
+        galleryInput.click();
+      }
+    }
+    cameraBtn.addEventListener('click',function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if(waiting){
+        waiting=false; if(timer) clearTimeout(timer); timer=null;
+        openCameraGalleryChooser();
+        return;
+      }
+      waiting=true;
+      timer=setTimeout(function(){
+        if(!waiting) return;
+        waiting=false; timer=null;
+        openCamera();
+      },DOUBLE_TAP_MS);
+    },true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true});
+  else install();
+})();
+</script>
+'''
+if 'id="ALLSTT-startup-camera-fix"' not in s:
+    s = s.replace('</body>', startup_fix + '\n</body>', 1)
+
 p.write_text(s, encoding='utf-8')
-print('STT patch applied: letterhead, filename, default description, protected officer gallery upload, robust autosave.')
+print('STT patch applied: startup recovery, camera single/double tap chooser, protected officer gallery, photo quality, autosave.')
