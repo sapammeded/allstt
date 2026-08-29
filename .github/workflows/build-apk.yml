@@ -77,8 +77,8 @@ jobs:
           s = s.replace(old2, new2, 1)
 
           patch = Path('android-download-bridge.js').read_text(encoding='utf-8')
-          if 'ALLSTTResolveFilename' not in s:
-              s = s.replace('</body>', '<script>\n' + patch + '\n</script>\n</body>')
+          face_patch = Path('stt-face-gallery-patch.js').read_text(encoding='utf-8')
+          s = s.replace('</body>', '<script>\n' + patch + '\n</script>\n<script>\n' + face_patch + '\n</script>\n</body>')
           p.write_text(s, encoding='utf-8')
           PY
           cp stt.html app/src/main/assets/stt.html
