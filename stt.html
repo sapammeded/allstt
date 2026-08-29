@@ -1292,6 +1292,19 @@ header .subtitle{font-size:1rem}
           <i class="fas fa-trash"></i> HAPUS FOTO
         </button>
         <input id="officerPhotoInput" type="file" accept="image/*" capture="user" style="display:none">
+        <input id="officerGalleryInput" type="file" accept="image/*" multiple style="display:none">
+        <div style="width:100%;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
+          <div style="font-weight:800;margin-bottom:8px"><i class="fas fa-lock"></i> UPLOAD FOTO WAJAH DARI GALERI</div>
+          <div class="small" style="margin-bottom:10px">Fitur ini hanya dapat digunakan setelah password galeri dimasukkan dengan benar.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="officerGalleryPassword" type="password" placeholder="Masukkan password..." style="flex:1;min-width:180px">
+            <button id="unlockOfficerGalleryBtn" type="button" class="btn btn-primary"><i class="fas fa-unlock"></i> BUKA</button>
+          </div>
+          <div id="officerGalleryAccess" style="display:none;margin-top:10px">
+            <div class="quality-notice"><i class="fas fa-check-circle"></i> Akses galeri foto wajah aktif.</div>
+            <button id="uploadOfficerGalleryBtn" type="button" class="btn btn-info" style="width:100%;margin-top:10px"><i class="fas fa-images"></i> UPLOAD FOTO WAJAH DARI GALERI</button>
+          </div>
+        </div>
       </div>
       <div id="officerPhotoPreviewWrap" style="display:none;margin-top:14px;text-align:center">
         <img id="officerPhotoPreview" alt="Foto wajah petugas"
