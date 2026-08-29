@@ -23,6 +23,9 @@ jobs:
       - name: Finalize persistent identity storage
         shell: python
         run: python finalize_identity_persistence.py
+      - name: Finalize STT PDF letterhead integration
+        shell: python
+        run: python finalize_letterhead_pdf.py
       - name: Prepare HTML assets
         shell: python
         run: |
