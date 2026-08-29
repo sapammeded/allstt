@@ -1,0 +1,59 @@
+name: Apply STT report refinements
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-stt-report.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch STT report
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('stt.html')
+          s = p.read_text(encoding='utf-8')
+
+          # 1) Exact automatic patrol description requested by the user.
+          old = "Kegiatan patroli area penjagaan telah selesai dilaksanakan dengan hasil situasi terpantau aman dan kondusif, temuan menonjol serta kendala operasional nihil."
+          new = "Kegiatan patroli area tersebut telah selesai dilaksanakan dengan hasil situasi terpantau terkendali aman dan kondusif, temuan menonjol serta kendala operasional nihil"
+          s = s.replace(old, new)
+
+          # Also replace the visible help text so the UI describes the real default.
+          s = s.replace('Jika dikosongkan akan terisi \"TERKENDALI AMAN\"', 'Jika dikosongkan akan terisi keterangan standar patroli otomatis')
+          s = s.replace('Jika deskripsi dikosongkan, otomatis terisi \"TERKENDALI AMAN\".', 'Jika deskripsi dikosongkan, otomatis terisi keterangan standar patroli.')
+
+          # 2) Cleaner PDF letterhead spacing: the report title must sit below,
+          # not on top of, the corporate rule.
+          s = s.replace("pdf.line(M,headerH+7,W-M,headerH+7);", "pdf.line(M,45,W-M,45);")
+          s = s.replace("pdf.text('LAPORAN PATROLI SECURITY',W/2,50,{align:'center'});", "pdf.text('LAPORAN PATROLI SECURITY',W/2,56,{align:'center'});")
+          s = s.replace("const metaY = 64;", "const metaY = 69;")
+          s = s.replace("const portraitY = 91;", "const portraitY = 96;")
+
+          # 3) Make the generated filename deterministic from officer + date + shift.
+          old_block = '''      const filenameDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(tanggal)\n        ? tanggal.split('-').reverse().join('-')\n        : safe(tanggal || new Date().toISOString().slice(0,10));\n      const filenameShift = safe((document.getElementById('shift')?.value || shift || '').trim()).replace(/_+/g,'_') || 'SHIFT';\n      const filename = `${safe(petugas || 'Petugas')}_${filenameDate}_${filenameShift}.pdf`;'''
+          new_block = '''      const filenameDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(tanggal)\n        ? tanggal.split('-').reverse().join('-')\n        : safe(tanggal || new Date().toISOString().slice(0,10));\n      const rawShift = String(document.getElementById('shift')?.value || '').trim();\n      const filenameShift = safe(rawShift.toUpperCase()).replace(/_+/g,'_') || 'SHIFT';\n      const filenameOfficer = safe(petugas || 'Petugas').replace(/_+/g,'_');\n      const filename = `${filenameOfficer}_${filenameDate}_${filenameShift}.pdf`;'''
+          if old_block in s:
+              s = s.replace(old_block, new_block)
+
+          p.write_text(s, encoding='utf-8')
+
+      - name: Commit patched STT
+        run: |
+          if git diff --quiet -- stt.html; then
+            echo 'No STT changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add stt.html
+          git commit -m 'fix: refine STT PDF letterhead filename and default description'
+          git push
