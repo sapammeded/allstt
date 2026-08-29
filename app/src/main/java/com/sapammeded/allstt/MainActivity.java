@@ -211,6 +211,7 @@ public class MainActivity extends Activity {
     }
 
     private void downloadUrlToPicker(String url, String filename, String mimeType) {
+        final String requestedMime = mimeType;
         new Thread(() -> {
             HttpURLConnection conn = null;
             try {
@@ -225,14 +226,15 @@ public class MainActivity extends Activity {
                 int code = conn.getResponseCode();
                 if (code < 200 || code >= 400) throw new Exception("HTTP " + code);
                 String ct = conn.getContentType();
-                if (mimeType == null || mimeType.isEmpty()) mimeType = ct;
+                String resolvedMime = requestedMime;
+                if (resolvedMime == null || resolvedMime.isEmpty()) resolvedMime = ct;
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 try (InputStream in = conn.getInputStream()) {
                     byte[] buf = new byte[8192]; int n;
                     while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
                 }
                 final byte[] bytes = out.toByteArray();
-                final String finalMime = mimeType == null ? "application/octet-stream" : mimeType;
+                final String finalMime = resolvedMime == null ? "application/octet-stream" : resolvedMime;
                 runOnUiThread(() -> openSavePicker(bytes, filename, finalMime));
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Download gagal: " + e.getMessage(), Toast.LENGTH_LONG).show());
