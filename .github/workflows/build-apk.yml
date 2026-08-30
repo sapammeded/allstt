@@ -13,96 +13,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-
-      - name: Patch STT gallery and company settings
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('stt.html')
-          s=p.read_text(encoding='utf-8')
-          s=re.sub(r'<script id="ALLSTT-STT-FACE-GALLERY-FINAL">.*?</script>\s*','',s,flags=re.S)
-          s=re.sub(r'<script id="ALLSTT-STT-FACE-GALLERY-V3">.*?</script>\s*','',s,flags=re.S)
-          marker='<button id="saveCompanyHeaderBtn" type="button" class="btn btn-primary"'
-          if 'saveCompanyHeaderNoPasswordBtn' not in s and marker in s:
-              extra='''<button id="saveCompanyHeaderNoPasswordBtn" type="button" class="btn btn-success" style="margin-top:12px;width:100%">\n          <i class="fas fa-floppy-disk"></i> SIMPAN IDENTITAS TANPA PASSWORD\n        </button>\n\n        '''
-              s=s.replace(marker,extra+marker,1)
-          patch=r'''<script id="ALLSTT-STT-V4-FIXES">
-          (function(){
-          'use strict';
-          function ready(fn){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fn,{once:true});else fn();}
-          ready(function(){
-            const face=document.getElementById('takeOfficerPhotoBtn');
-            const faceInput=document.getElementById('officerPhotoInput');
-            if(face && faceInput && !face.dataset.v4Fixed){
-              const clean=face.cloneNode(true); clean.dataset.v4Fixed='1'; face.replaceWith(clean);
-              clean.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();faceInput.value='';faceInput.setAttribute('accept','image/*');faceInput.setAttribute('capture','user');faceInput.click();});
-            }
-            const unlock=document.getElementById('unlockCameraGalleryBtn');
-            const pw=document.getElementById('cameraGalleryPassword');
-            const access=document.getElementById('cameraGalleryAccess');
-            const upload=document.getElementById('uploadGalleryBtn');
-            const gallery=document.getElementById('galleryCameraInput');
-            let unlocked=false;
-            if(unlock && pw && access){
-              const clean=unlock.cloneNode(true);clean.dataset.v4Gallery='1';unlock.replaceWith(clean);
-              clean.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(String(pw.value||'')==='mbahpritampan'){unlocked=true;window.galleryAccessGranted=true;window.allsttGalleryUnlocked=true;access.style.display='block';pw.value='';alert('Password benar. Pilih foto dari galeri.');}else{unlocked=false;window.galleryAccessGranted=false;window.allsttGalleryUnlocked=false;access.style.display='none';alert('Password salah!');}});
-            }
-            if(upload){
-              const clean=upload.cloneNode(true);clean.dataset.v4Gallery='1';upload.replaceWith(clean);
-              clean.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(!unlocked&&!window.galleryAccessGranted&&!window.allsttGalleryUnlocked){alert('Masukkan password terlebih dahulu.');return;}if(gallery){gallery.value='';gallery.click();}});
-            }
-            const free=document.getElementById('saveCompanyHeaderNoPasswordBtn');
-            if(free&&!free.dataset.v4Settings){
-              free.dataset.v4Settings='1';
-              free.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();const name=(document.getElementById('companyName')?.value||'').trim();const address=(document.getElementById('companyAddress')?.value||'').trim();localStorage.setItem('patrol_company_name_v1',name);localStorage.setItem('patrol_company_address_v1',address);alert('Nama dan alamat perusahaan tersimpan tanpa password.');});
-            }
-          });
-          })();
-          </script>
-          '''
-          if 'ALLSTT-STT-V4-FIXES' not in s:
-              s=s.replace('</body>',patch+'</body>',1)
-          p.write_text(s,encoding='utf-8')
-          PY
-
+      - name: Apply centralized ADMIN controls
+        run: python3 apply_admin_patch.py
       - name: Prepare assets
-        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          a=Path('app/src/main/assets')
-          a.mkdir(parents=True,exist_ok=True)
+          a=Path('app/src/main/assets'); a.mkdir(parents=True,exist_ok=True)
           for n in ('stt.html','hvss2.html','vacs.html','launcher.html'):
               src=Path(n)
-              if not src.is_file():
-                  raise SystemExit(f'Missing root asset: {n}')
+              if not src.is_file(): raise SystemExit(f'Missing root asset: {n}')
               (a/n).write_text(src.read_text(encoding='utf-8'),encoding='utf-8')
           PY
-
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
-
       - name: Verify APK
-        run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          file app/build/outputs/apk/debug/app-debug.apk
-
+        run: test -s app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
