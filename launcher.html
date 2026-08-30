@@ -12,11 +12,21 @@
 <main>
 <section class="brand"><div class="icon">🛡️</div><h1>ALLSTT</h1><p>Security Operations & Reporting</p></section>
 <section class="apps">
-<a class="app" href="stt.html"><h2>🛡️ PATROLISTT • SECURITY PATROL</h2><p>Patroli, area, kamera HP, foto, identitas petugas, tanda tangan, penyimpanan dan laporan PDF.</p><span class="badge">BUKA STT</span></a>
-<a class="app" href="hvss2.html"><h2>👥 HVSS2</h2><p>Visitor Registration, Key Loan, dashboard, history, laporan dan fitur yang sudah tersedia di HVSS2.</p><span class="badge">BUKA HVSS2</span></a>
-<a class="app" href="vacs.html"><h2>🚗 VACS</h2><p>Vehicle Access Control System beserta seluruh form, data dan fitur yang sudah tersedia.</p><span class="badge">BUKA VACS</span></a>
+<a class="app" href="file:///android_asset/stt.html"><h2>🛡️ PATROLISTT • SECURITY PATROL</h2><p>Patroli, area, kamera HP, foto, identitas petugas, tanda tangan, penyimpanan dan laporan PDF.</p><span class="badge">BUKA STT</span></a>
+<a class="app" href="file:///android_asset/hvss2.html"><h2>👥 HVSS2</h2><p>Visitor Registration, Key Loan, dashboard, history, laporan dan fitur yang sudah tersedia di HVSS2.</p><span class="badge">BUKA HVSS2</span></a>
+<a class="app" href="file:///android_asset/vacs.html"><h2>🚗 VACS</h2><p>Vehicle Access Control System beserta seluruh form, data dan fitur yang sudah tersedia.</p><span class="badge">BUKA VACS</span></a>
 </section>
 <div class="foot">ALLSTT • Semua modul tetap menggunakan source HTML asli.</div>
 </main>
+<script>
+(function(){
+  document.querySelectorAll('a[href^="file:///android_asset/"]').forEach(function(a){
+    a.addEventListener('click',function(e){
+      e.preventDefault();
+      location.href=this.href;
+    });
+  });
+})();
+</script>
 </body>
 </html>
