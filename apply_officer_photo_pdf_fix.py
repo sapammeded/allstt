@@ -77,13 +77,13 @@ if old not in s:
 s = s.replace(old, new, 1)
 
 # Delete the persisted copy when the user removes the officer photo.
+# IMPORTANT: the remove handler is synchronous, so do not use await here.
 old = "    officerPhotoRef=null;\n    officerPhotoBlob=null;\n    officerPhotoDataUrl=null;"
-new = """    try{ if(typeof idbDelete==='function' && db) await idbDelete(STORE_BLOBS, OFFICER_PHOTO_PDF_FIX_V1); }catch(_){ }
-    try{ if(typeof idbDelete==='function' && db) await idbDelete(STORE_META, OFFICER_PHOTO_PDF_FIX_V1); }catch(_){ }
+new = """    try{ if(typeof idbDelete==='function' && db) { const r=idbDelete(STORE_BLOBS, OFFICER_PHOTO_PDF_FIX_V1); if(r && typeof r.catch==='function') r.catch(()=>{}); } }catch(_){ }
+    try{ if(typeof idbDelete==='function' && db) { const r=idbDelete(STORE_META, OFFICER_PHOTO_PDF_FIX_V1); if(r && typeof r.catch==='function') r.catch(()=>{}); } }catch(_){ }
     officerPhotoRef=null;
     officerPhotoBlob=null;
     officerPhotoDataUrl=null;"""
-# only first occurrence is the remove handler; cleanup code later also has this sequence but we don't want to alter it.
 if old in s:
     s = s.replace(old, new, 1)
 
