@@ -40,6 +40,9 @@ jobs:
       - name: Apply ONLY announcement Continue button Android WebView fix
         run: python3 apply_announcement_button_fix.py
 
+      - name: Apply native WebView fallback ONLY for announcement Continue
+        run: python3 apply_announcement_native_touch_fix.py
+
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
         run: |
@@ -90,6 +93,11 @@ jobs:
           grep -q 'ALLSTT ANNOUNCEMENT BUTTON FIX V3' stt.html
           grep -q 'onclick="try{var m=document.getElementById('\''notificationModal'\'')' stt.html
           grep -q 'ALLSTT-ANNOUNCEMENT-BUTTON-FIX-V3-CSS' stt.html
+
+      - name: Verify native announcement touch fallback
+        run: |
+          grep -q 'installAnnouncementTouchBridge' app/src/main/java/com/sapammeded/allstt/MainActivity.java
+          grep -q "closest('#aamiinBtn')" app/src/main/java/com/sapammeded/allstt/MainActivity.java
 
       - name: Validate patched STT JavaScript syntax
         shell: bash
