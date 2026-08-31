@@ -176,11 +176,4 @@ repl='''                if (picker.getType() == null || picker.getType().isEmpty
                 Intent camera = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);'''
 if needle not in j: raise SystemExit('MainActivity picker block not found')
 j=j.replace(needle,repl,1)
-needle2='''                chooser.putExtra(Intent.EXTRA_TITLE, "Pilih sumber foto");
-                if (Build.VERSION.SDK_INT >= 23)'''
-repl2='''                chooser.putExtra(Intent.EXTRA_TITLE, "Pilih sumber foto");
-                chooser.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, allowMultiple);
-                if (Build.VERSION.SDK_INT >= 23)'''
-if needle2 not in j: raise SystemExit('chooser block not found')
-j=j.replace(needle2,repl2,1)
 java.write_text(j,encoding='utf-8')
