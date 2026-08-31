@@ -1,6 +1,8 @@
 name: Build FINAL ALLSTT APK
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -23,10 +25,12 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      # IMPORTANT: stt.html in main is the baseline. Do not download an old
-      # commit and do not run stacked runtime/UI patches over it.
+      # stt.html in main is the baseline. Never replace it with an old commit.
       - name: Apply ONLY unified ADMIN authorization
         run: python3 apply_admin_patch.py
+
+      - name: Fix final Android gallery/upload paths
+        run: python3 final_upload_bridge_v6.py
 
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
@@ -55,6 +59,9 @@ jobs:
           grep -q 'IDENTITAS PERUSAHAAN' stt.html
           grep -q 'KOP SURAT' stt.html
           grep -q 'TANDA TANGAN' stt.html
+
+      - name: Verify final upload bridge
+        run: grep -q 'ALLSTT FINAL UPLOAD BRIDGE V6' stt.html
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
