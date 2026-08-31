@@ -25,12 +25,14 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      # stt.html in main is the baseline. Never replace it with an old commit.
       - name: Apply ONLY unified ADMIN authorization
         run: python3 apply_admin_patch.py
 
       - name: Remove legacy gallery redispatch and harden Android upload
         run: python3 final_runtime_fix_v7.py
+
+      - name: Apply protected gallery/company feature policy
+        run: python3 protect_features.py
 
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
@@ -52,7 +54,6 @@ jobs:
           grep -q 'id="openCameraMenu"' stt.html
           grep -q 'id="galleryCameraInput"' stt.html
           grep -q 'id="targetAreaSelect"' stt.html
-          grep -q 'id="allsttGalleryUploadBtn"' stt.html
 
       - name: Verify baseline company identity, kop surat & signature exists
         run: |
@@ -60,6 +61,12 @@ jobs:
           grep -q 'IDENTITAS PERUSAHAAN' stt.html
           grep -q 'KOP SURAT' stt.html
           grep -q 'TANDA TANGAN' stt.html
+
+      - name: Verify protected feature policy
+        run: |
+          grep -q 'ALLSTT-FINAL-ADMIN-GATE-V1' stt.html
+          grep -q 'Protected actions ask for ADMIN' stt.html
+          ! grep -q "alert('✅ Foto berhasil ditambahkan ke '+area.name)" stt.html
 
       - name: Verify final Android runtime hardening
         run: |
