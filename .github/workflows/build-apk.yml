@@ -31,6 +31,12 @@ jobs:
       - name: Apply ONLY unified ADMIN authorization
         run: python3 apply_admin_patch.py
 
+      # Final build-time policy: keep every baseline feature/UI intact while
+      # making ONE successful ADMIN session the authorization for all gallery
+      # uploads and company identity/logo editing.
+      - name: Enforce single ADMIN gate without replacing baseline UI
+        run: python3 enforce_admin_gate.py
+
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
         run: |
@@ -57,6 +63,9 @@ jobs:
           grep -q 'id="companySection"' stt.html
           grep -q 'IDENTITAS PERUSAHAAN' stt.html
           grep -q 'TANDA TANGAN' stt.html
+
+      - name: Verify final ADMIN gate exists
+        run: grep -q 'ALLSTT-FINAL-ADMIN-GATE-V1' stt.html
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
