@@ -34,6 +34,9 @@ jobs:
       - name: Apply protected gallery/company feature policy
         run: python3 protect_features.py
 
+      - name: Apply ONLY officer gallery photo PDF persistence fix
+        run: python3 apply_officer_photo_pdf_fix.py
+
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
         run: |
@@ -73,6 +76,11 @@ jobs:
           grep -q 'ALLSTT FINAL UPLOAD BRIDGE V7' stt.html
           grep -q 'IndexedDB unavailable' stt.html
           grep -q 'EXTRA_ALLOW_MULTIPLE' app/src/main/java/com/sapammeded/allstt/MainActivity.java
+
+      - name: Verify officer gallery photo PDF fix
+        run: |
+          grep -q 'OFFICER_PHOTO_PDF_FIX_V1' stt.html
+          grep -q 'const pdfOfficerPhotoData = officerPhotoDataUrl || await loadOfficerPhoto();' stt.html
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
