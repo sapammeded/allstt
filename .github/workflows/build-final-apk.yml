@@ -38,7 +38,7 @@ jobs:
         run: python3 apply_officer_photo_pdf_fix.py
 
       - name: Apply ONLY announcement Continue button Android WebView fix
-        run: python3 fix_notification_continue_click.py
+        run: python3 apply_announcement_button_fix.py
 
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
@@ -87,9 +87,9 @@ jobs:
 
       - name: Verify announcement Continue button fix
         run: |
-          grep -q 'NOTIFICATION_CONTINUE_CLICK_FIX_V1' stt.html
+          grep -q 'ALLSTT ANNOUNCEMENT BUTTON FIX V2' stt.html
           grep -q 'touchend' stt.html
-          grep -q 'closeNotificationModal' stt.html
+          grep -q '__allsttContinueAnnouncement' stt.html
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
