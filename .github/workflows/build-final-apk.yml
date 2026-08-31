@@ -22,6 +22,8 @@ jobs:
           gradle-version: '8.7'
       - name: Apply final admin gallery runtime patch
         run: python3 final_runtime_patch.py
+      - name: Apply unified patrol camera/gallery admin bridge
+        run: python3 admin_camera_gallery_v5.py
       - name: Prepare HTML assets
         shell: bash
         run: |
