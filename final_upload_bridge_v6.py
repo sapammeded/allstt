@@ -47,26 +47,23 @@ function install(){
         i.value='';e.stopImmediatePropagation();
         toast('🔒 Upload dari galeri membutuhkan ADMIN.',false);return;
       }
-      // Do not replace the baseline handler. Give it the original event first,
-      // then re-dispatch once so handlers installed by earlier runtime patches
-      // cannot miss Android WebView file selections.
-      if(admin() && !isCameraInput(i)){
+      if(admin() && !isCameraInput(i) && !e.__allsttV6Redispatched){
         setTimeout(()=>{
-          try{i.dispatchEvent(new Event('change',{bubbles:true}))}catch(_){ }
+          try{
+            const ev=new Event('change',{bubbles:true});
+            ev.__allsttV6Redispatched=true;
+            i.dispatchEvent(ev);
+          }catch(_){ }
         },60);
       }
     },true);
   });
-
-  // Make every gallery chooser explicitly multi-select after Admin login.
   if(admin()){
     document.querySelectorAll('input[type=file]').forEach(i=>{
       if(!isCameraInput(i))i.multiple=true;
     });
   }
-
-  // Successful save notification for the existing company identity button.
-  const save= document.getElementById('saveCompanyHeaderBtn');
+  const save=document.getElementById('saveCompanyHeaderBtn');
   if(save && save.dataset.allsttSaveNotify!=='1'){
     save.dataset.allsttSaveNotify='1';
     save.addEventListener('click',function(){
