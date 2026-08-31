@@ -25,17 +25,14 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      # IMPORTANT: never replace stt.html with an old commit and never stack
-      # runtime/UI patches that can remove or duplicate baseline features.
-      # The repository's CURRENT stt.html is the single source of truth.
       - name: Apply ONLY unified ADMIN authorization
         run: python3 apply_admin_patch.py
 
-      # Final build-time policy: keep every baseline feature/UI intact while
-      # making ONE successful ADMIN session the authorization for all gallery
-      # uploads and company identity/logo editing.
       - name: Enforce single ADMIN gate without replacing baseline UI
         run: python3 enforce_admin_gate.py
+
+      - name: Apply protected gallery/company feature policy
+        run: python3 protect_features.py
 
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
@@ -66,6 +63,11 @@ jobs:
 
       - name: Verify final ADMIN gate exists
         run: grep -q 'ALLSTT-FINAL-ADMIN-GATE-V1' stt.html
+
+      - name: Verify protected feature policy
+        run: |
+          grep -q 'Protected actions ask for ADMIN' stt.html
+          ! grep -q "alert('✅ Foto berhasil ditambahkan ke '+area.name)" stt.html
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
