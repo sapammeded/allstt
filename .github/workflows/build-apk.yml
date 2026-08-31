@@ -22,14 +22,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Apply baseline-preserving ADMIN controls
-        run: python3 admin_patch_v2.py
+      - name: Apply single baseline-preserving ADMIN policy
+        run: python3 apply_admin_patch.py
       - name: Keep normal startup on patrol dashboard
         run: python3 admin_startup_fix.py
       - name: Harden HTML navigation
         run: python3 patch_navigation.py
-      - name: Enforce ADMIN-only identity, logos and gallery
-        run: python3 admin_policy_v3.py
       - name: Prepare assets
         run: |
           python3 - <<'PY'
