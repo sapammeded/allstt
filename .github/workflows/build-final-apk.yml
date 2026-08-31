@@ -91,6 +91,20 @@ jobs:
           grep -q 'onclick="try{var m=document.getElementById('\''notificationModal'\'')' stt.html
           grep -q 'ALLSTT-ANNOUNCEMENT-BUTTON-FIX-V3-CSS' stt.html
 
+      - name: Validate patched STT JavaScript syntax
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('stt.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
+          inline = '\n\n'.join(scripts)
+          Path('/tmp/allstt-inline.js').write_text(inline, encoding='utf-8')
+          print(f'Extracted {len(scripts)} inline script blocks')
+          PY
+          node --check /tmp/allstt-inline.js
+
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
