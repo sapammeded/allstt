@@ -4,16 +4,22 @@ import re
 p = Path('stt.html')
 s = p.read_text(encoding='utf-8')
 
-# Keep the baseline STT intact. Only move protected controls behind ADMIN.
+# Keep baseline STT intact. Only move protected controls behind ADMIN.
 s = s.replace('<button class="nav-item" data-target="companySection"><i class="fas fa-building"></i><span>Kop Surat & Logo</span></button>', '<button class="nav-item" data-admin="true"><i class="fas fa-user-shield"></i><span>ADMIN</span></button>', 1)
 s = s.replace('<div id="companySection" style="margin-top:20px" class="menu-only-section">', '<div id="companySection" style="margin-top:20px;display:none" class="menu-only-section">', 1)
 
-# Remove visible admin credential UI; retain invisible bridge for the baseline handlers.
+# Make the first-screen LANJUTKAN action independent of later JavaScript errors.
+# It only closes the announcement modal and records that it was acknowledged.
+if 'id="aamiinBtn"' in s and 'ALLSTT-LANJUTKAN-SAFETY' not in s:
+    s = s.replace('<button id="aamiinBtn"', '<button id="aamiinBtn" onclick="(function(){var m=document.getElementById(\'notificationModal\');if(m){m.style.display=\'none\';m.setAttribute(\'aria-hidden\',\'true\');}try{localStorage.setItem(\'allstt_notification_ack_v1\',\'1\')}catch(e){}})()"', 1)
+    s = s.replace('</head>', '<script id="ALLSTT-LANJUTKAN-SAFETY">document.addEventListener("DOMContentLoaded",function(){var b=document.getElementById("aamiinBtn");if(b&&!b.dataset.safeBound){b.dataset.safeBound="1";b.addEventListener("click",function(){var m=document.getElementById("notificationModal");if(m){m.style.display="none";m.setAttribute("aria-hidden","true");}try{localStorage.setItem("allstt_notification_ack_v1","1")}catch(e){}} ,true);}});</script>\n</head>', 1)
+
+# Remove visible admin credential UI; retain invisible bridge for baseline handlers.
 s, n = re.subn(r'\s*<div style="margin-top:14px">\s*<label class="small"><i class="fas fa-key"></i> PASSWORD ADMIN KOP & LOGO</label>.*?</div>\s*\n\s*<div id="logoUploadSection"', '\n      <div id="adminCredentialBridge" style="display:none" aria-hidden="true"><input id="logoPassword" type="password"><button id="unlockLogoBtn" type="button">ADMIN</button></div>\n      <div id="logoUploadSection"', s, count=1, flags=re.S|re.I)
 if n != 1: raise RuntimeError('Admin credential block not found')
 s = re.sub(r'\s*<div style="margin-top:10px">\s*<button id="changeLogoPasswordBtn".*?</div>\s*\n\s*</div>\s*\n\s*<!-- ==================== TANDA TANGAN', '\n    </div>\n\n    <!-- ==================== TANDA TANGAN', s, count=1, flags=re.S|re.I)
 
-# Replace old gallery credential UI. Hidden IDs remain so the proven baseline gallery handler is reused.
+# Replace old gallery credential UI. Hidden IDs remain so proven baseline handlers can be reused.
 st = s.find('<!-- SATU FITUR KAMERA: kamera HP + galeri terkunci password -->')
 en = s.find('<!-- Tombol Tambah Area', st)
 if st < 0 or en < 0: raise RuntimeError('Camera/gallery section markers not found')
@@ -38,7 +44,7 @@ cam = '''<!-- SATU FITUR KAMERA: kamera HP + galeri dikendalikan ADMIN -->
         '''
 s = s[:st] + cam + s[en:]
 
-# Remove the old credential wording from visible text and alerts.
+# Remove old visible credential wording.
 for a,b in {
 'PASSWORD ADMIN LOGO':'AKSES ADMIN','PASSWORD ADMIN KOP & LOGO':'AKSES ADMIN','GANTI PASSWORD ADMIN':'GANTI KODE ADMIN','GANTI PASSWORD GALERI':'PENGATURAN AKSES GALERI','SIMPAN PASSWORD BARU':'SIMPAN PENGATURAN AKSES','PASSWORD UPLOAD LOGO CUSTOM':'AKSES ADMIN UNTUK LOGO','Masukkan password untuk membuka akses upload foto dari galeri.':'Buka akses upload foto dari galeri melalui menu ADMIN.','Untuk akses galeri, buka menu ☰ → pilih <strong>Kamera & Area Patroli</strong> → masukkan password untuk membuka akses galeri.':'Untuk upload dari galeri, buka menu ☰ → pilih <strong>ADMIN</strong> → autentikasi administrator → aktifkan akses galeri.','Masukkan password admin terlebih dahulu.':'Masuk ke menu ADMIN terlebih dahulu.','Buka pengaturan dengan password admin terlebih dahulu.':'Buka pengaturan melalui menu ADMIN terlebih dahulu.','Password benar. Pengaturan kop surat dan dua logo terbuka.':'Akses ADMIN berhasil. Pengaturan kop surat dan dua logo terbuka.','Password admin salah.':'Kode admin salah.','Password logo benar. Sekarang pilih logo perusahaan.':'Akses ADMIN berhasil. Sekarang pilih logo perusahaan.','Password logo salah.':'Kode admin salah.','Password admin saat ini salah.':'Kode admin saat ini salah.','Password logo saat ini salah.':'Kode admin saat ini salah.','Password galeri berhasil diganti.':'Pengaturan akses galeri berhasil diperbarui.','Password salah!':'Kode admin salah!','Masukkan password terlebih dahulu.':'Buka akses melalui menu ADMIN terlebih dahulu.'}.items():
     s = s.replace(a,b)
