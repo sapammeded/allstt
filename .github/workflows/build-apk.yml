@@ -3,10 +3,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,10 +20,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Apply single baseline-preserving ADMIN policy
+      - name: Restore known-good STT baseline
+        run: curl -fsSL https://raw.githubusercontent.com/sapammeded/allstt/174f9e867c3b3d1ca0f8319caec30820a85f0230/stt.html -o stt.html
+      - name: Apply minimal ADMIN access layer
         run: python3 apply_admin_patch.py
-      - name: Keep normal startup on patrol dashboard
-        run: python3 admin_startup_fix.py
       - name: Harden HTML navigation
         run: python3 patch_navigation.py
       - name: Prepare assets
