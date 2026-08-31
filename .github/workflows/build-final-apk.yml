@@ -9,40 +9,62 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout CURRENT repository baseline
         uses: actions/checkout@v4
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Apply final admin gallery runtime patch
-        run: python3 final_runtime_patch.py
-      - name: Apply unified patrol camera/gallery admin bridge
-        run: python3 admin_camera_gallery_v5.py
-      - name: Prepare HTML assets
+
+      # IMPORTANT: stt.html in main is the baseline. Do not download an old
+      # commit and do not run stacked runtime/UI patches over it.
+      - name: Apply ONLY unified ADMIN authorization
+        run: python3 apply_admin_patch.py
+
+      - name: Prepare CURRENT HTML assets unchanged
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          a=Path('app/src/main/assets')
+          a = Path('app/src/main/assets')
           a.mkdir(parents=True, exist_ok=True)
-          for n in ('stt.html','hvss2.html','vacs.html','launcher.html'):
-              src=Path(n)
+          for n in ('stt.html', 'hvss2.html', 'vacs.html', 'launcher.html'):
+              src = Path(n)
               if not src.is_file():
                   raise SystemExit(f'Missing root asset: {n}')
-              (a/n).write_text(src.read_text(encoding='utf-8'), encoding='utf-8')
+              (a / n).write_text(src.read_text(encoding='utf-8'), encoding='utf-8')
           PY
+
+      - name: Verify baseline Kamera & Area Patroli exists
+        run: |
+          grep -q 'id="cameraTab"' stt.html
+          grep -q 'id="openCameraMenu"' stt.html
+          grep -q 'id="galleryCameraInput"' stt.html
+          grep -q 'id="targetAreaSelect"' stt.html
+
+      - name: Verify baseline company identity, kop surat & signature exists
+        run: |
+          grep -q 'id="companySection"' stt.html
+          grep -q 'IDENTITAS PERUSAHAAN' stt.html
+          grep -q 'KOP SURAT' stt.html
+          grep -q 'TANDA TANGAN' stt.html
+
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
       - name: Build installable APK
         run: gradle --no-daemon :app:assembleDebug
+
       - name: Verify APK
         run: test -s app/build/outputs/apk/debug/app-debug.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
