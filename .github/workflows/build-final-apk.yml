@@ -87,9 +87,9 @@ jobs:
 
       - name: Verify announcement Continue button fix
         run: |
-          grep -q 'ALLSTT ANNOUNCEMENT BUTTON FIX V2' stt.html
-          grep -q 'touchend' stt.html
-          grep -q '__allsttContinueAnnouncement' stt.html
+          grep -q 'ALLSTT ANNOUNCEMENT BUTTON FIX V3' stt.html
+          grep -q 'onclick="try{var m=document.getElementById('\''notificationModal'\'')' stt.html
+          grep -q 'ALLSTT-ANNOUNCEMENT-BUTTON-FIX-V3-CSS' stt.html
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
