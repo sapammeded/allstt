@@ -24,6 +24,8 @@ jobs:
         run: curl -fsSL https://raw.githubusercontent.com/sapammeded/allstt/77e38ac91d2f942f5fe12fc49d58fb1eb8b80a8f/stt.html -o stt.html
       - name: Apply unified ADMIN access layer
         run: python3 apply_admin_patch.py
+      - name: Fix Android face gallery import
+        run: python3 fix_face_gallery.py
       - name: Harden HTML navigation
         run: python3 patch_navigation.py
       - name: Prepare assets
