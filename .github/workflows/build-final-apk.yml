@@ -65,8 +65,8 @@ jobs:
       - name: Verify protected feature policy
         run: |
           grep -q 'ALLSTT-FINAL-ADMIN-GATE-V1' stt.html
-          grep -q 'Protected actions ask for ADMIN' stt.html
-          ! grep -q "alert('✅ Foto berhasil ditambahkan ke '+area.name)" stt.html
+          grep -q 'ONE ADMIN SESSION protects every gallery/company administration action' stt.html
+          ! grep -q "Foto berhasil ditambahkan ke" stt.html
 
       - name: Verify final Android runtime hardening
         run: |
