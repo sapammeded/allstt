@@ -29,8 +29,8 @@ jobs:
       - name: Apply ONLY unified ADMIN authorization
         run: python3 apply_admin_patch.py
 
-      - name: Fix final Android gallery/upload paths
-        run: python3 final_upload_bridge_v6.py
+      - name: Remove legacy gallery redispatch and harden Android upload
+        run: python3 final_runtime_fix_v7.py
 
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
@@ -52,6 +52,7 @@ jobs:
           grep -q 'id="openCameraMenu"' stt.html
           grep -q 'id="galleryCameraInput"' stt.html
           grep -q 'id="targetAreaSelect"' stt.html
+          grep -q 'id="allsttGalleryUploadBtn"' stt.html
 
       - name: Verify baseline company identity, kop surat & signature exists
         run: |
@@ -60,8 +61,11 @@ jobs:
           grep -q 'KOP SURAT' stt.html
           grep -q 'TANDA TANGAN' stt.html
 
-      - name: Verify final upload bridge
-        run: grep -q 'ALLSTT FINAL UPLOAD BRIDGE V6' stt.html
+      - name: Verify final Android runtime hardening
+        run: |
+          grep -q 'ALLSTT FINAL UPLOAD BRIDGE V7' stt.html
+          grep -q 'IndexedDB unavailable' stt.html
+          grep -q 'EXTRA_ALLOW_MULTIPLE' app/src/main/java/com/sapammeded/allstt/MainActivity.java
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
