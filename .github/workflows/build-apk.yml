@@ -24,6 +24,8 @@ jobs:
           gradle-version: '8.7'
       - name: Apply baseline-preserving ADMIN controls
         run: python3 admin_patch_v2.py
+      - name: Keep normal startup on patrol dashboard
+        run: python3 admin_startup_fix.py
       - name: Harden HTML navigation
         run: python3 patch_navigation.py
       - name: Prepare assets
