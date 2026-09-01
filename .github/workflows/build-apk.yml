@@ -14,6 +14,14 @@ jobs:
       - name: Checkout CURRENT repository baseline
         uses: actions/checkout@v4
 
+      # IMPORTANT: These patches are build-time only and touch HVSS2.
+      # They must never replace launcher.html, AndroidManifest.xml, or icon resources.
+      - name: Apply ONLY HVSS2 Key Loan Log patch
+        run: python3 apply_hvss2_keylog_patch.py
+
+      - name: Apply ONLY HVSS2 PDF fallback
+        run: python3 apply_hvss2_pdf_fallback.py
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -62,6 +70,15 @@ jobs:
               (a / n).write_text(src.read_text(encoding='utf-8'), encoding='utf-8')
           PY
 
+      - name: Verify HVSS2 Key Loan Log and PDF fallback
+        run: |
+          grep -q 'HVSS-KEY-LOAN-LOG-PATCH-V1' hvss2.html
+          grep -q 'data-page="keylogPage"' hvss2.html
+          grep -q 'id="keyLogBody"' hvss2.html
+          grep -q 'id="keyLogPdf"' hvss2.html
+          grep -q 'HVSS-PDF-FALLBACK-V2' hvss2.html
+          grep -q 'HVSS_PDF_FALLBACK' hvss2.html
+
       - name: Verify baseline Kamera & Area Patroli exists
         run: |
           grep -q 'id="cameraTab"' stt.html
@@ -83,8 +100,15 @@ jobs:
           grep -q 'Protected actions ask for ADMIN' stt.html
           ! grep -q "alert('✅ Foto berhasil ditambahkan ke '+area.name)" stt.html
 
-      - name: Verify launcher icon
-        run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: Verify launcher and icon are untouched
+        shell: bash
+        run: |
+          test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s launcher.html
+          test -s app/src/main/AndroidManifest.xml
+          grep -q 'android:icon="@mipmap/ic_launcher"' app/src/main/AndroidManifest.xml
+          ICON_SHA=$(git hash-object app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)
+          test "$ICON_SHA" = "a2691133cd23eea5b8cf9680001548bd0aeda9e0"
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
