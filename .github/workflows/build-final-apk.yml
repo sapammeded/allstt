@@ -14,6 +14,9 @@ jobs:
       - name: Checkout CURRENT repository baseline
         uses: actions/checkout@v4
 
+      - name: Apply ONLY HVSS2 Key Loan Log patch
+        run: python3 apply_hvss2_keylog_patch.py
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -56,6 +59,13 @@ jobs:
                   raise SystemExit(f'Missing root asset: {n}')
               (a / n).write_text(src.read_text(encoding='utf-8'), encoding='utf-8')
           PY
+
+      - name: Verify HVSS2 baseline and Key Loan Log patch
+        run: |
+          grep -q 'HVSS-KEY-LOAN-LOG-PATCH-V1' hvss2.html
+          grep -q 'data-page="keylogPage"' hvss2.html
+          grep -q 'id="keyLogBody"' hvss2.html
+          grep -q 'id="keyLogPdf"' hvss2.html
 
       - name: Verify baseline Kamera & Area Patroli exists
         run: |
@@ -112,6 +122,19 @@ jobs:
           print(f'Extracted {len(scripts)} inline script blocks')
           PY
           node --check /tmp/allstt-inline.js
+
+      - name: Validate HVSS2 JavaScript syntax
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('hvss2.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
+          Path('/tmp/hvss2-inline.js').write_text('\n\n'.join(scripts), encoding='utf-8')
+          print(f'Extracted {len(scripts)} HVSS2 inline script blocks')
+          PY
+          node --check /tmp/hvss2-inline.js
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
