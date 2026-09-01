@@ -34,6 +34,20 @@ jobs:
       - name: Apply protected gallery/company feature policy
         run: python3 protect_features.py
 
+      - name: Remove any duplicate legacy gallery success alerts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('stt.html')
+          s = p.read_text(encoding='utf-8')
+          legacy = "alert('✅ Foto berhasil ditambahkan ke '+area.name);"
+          before = s.count(legacy)
+          s = s.replace(legacy, '')
+          p.write_text(s, encoding='utf-8')
+          print(f'Removed legacy gallery success alerts: {before}')
+          PY
+
       - name: Prepare CURRENT HTML assets unchanged
         shell: bash
         run: |
