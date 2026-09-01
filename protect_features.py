@@ -4,9 +4,9 @@ import re
 p = Path('stt.html')
 s = p.read_text(encoding='utf-8')
 
-# Multiple gallery uploads are intentionally silent. The existing processing
-# overlay/thumbnail is the only feedback during normal operation.
-s = re.sub(r"\s*alert\(\s*['\"]✅ Foto berhasil ditambahkan ke ['\"]\s*\+\s*area\.name\s*\)\s*;?", "", s, count=1)
+# Multiple gallery uploads are intentionally silent. Remove every legacy success
+# alert because the baseline contains the same handler more than once.
+s = re.sub(r"\s*alert\(\s*['\"]✅ Foto berhasil ditambahkan ke ['\"]\s*\+\s*area\.name\s*\)\s*;?", "", s)
 
 # Replace the previous generated policy so every build is deterministic.
 s = re.sub(r'<style id="ALLSTT-FINAL-ADMIN-GATE-CSS">.*?<script id="ALLSTT-FINAL-ADMIN-GATE-V1">.*?</script>\s*', '', s, count=1, flags=re.S)
