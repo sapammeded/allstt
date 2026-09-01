@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FORM PATROLI PROFESIONAL SECURITY — MASTER</title>
+<title>FORM PATROLI PROFESIONAL SECURITY</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1605,9 +1605,8 @@ body:not(.admin-unlocked) #companySection{display:none !important;}
           <input type="file" id="nativeCameraInput" accept="image/*" capture="environment" style="display:none" />
           <input type="file" id="galleryCameraInput" accept="image/*" multiple style="display:none" />
           <div class="quality-notice" style="margin-top:14px">
-            <i class="fas fa-camera"></i> <strong>Ambil foto langsung melalui kamera yang tersedia pada perangkat.</strong>
+            <i class="fas fa-camera"></i> <strong>Ambil foto langsung dari kamera bawaan HP.</strong>
           </div>
-          <div class="small" style="margin-top:8px;color:var(--muted)"><i class="fas fa-circle-info"></i> Pada APK Android, sistem dapat menampilkan aplikasi kamera yang kompatibel dan sudah terpasang.</div>
         </div>
 
         <!-- Galeri hanya bisa dibuka setelah ADMIN dibuka -->
@@ -2711,8 +2710,6 @@ function setupSuperCleanup() {
     if(open) open.style.display=adminUnlocked?'block':'none';
     const uploadSec=document.getElementById('logoUploadSection');
     if(uploadSec) uploadSec.style.display=adminUnlocked?'block':'none';
-    const devicePanel=document.getElementById('sttDeviceManagement');
-    if(devicePanel) devicePanel.style.display=adminUnlocked?'block':'none';
     logoUnlocked=adminUnlocked;
     if(adminUnlocked){
       window.allsttGalleryUnlocked=true;
@@ -4559,6 +4556,13 @@ renderAreas();
   }
 
   function request(){
+    // Android WebView bridge hook: if the APK exposes a location permission helper,
+    // ask it first, then retry browser geolocation. Browser behavior remains unchanged.
+    try{
+      if(window.Android && typeof window.Android.requestLocationPermission==='function'){
+        try{ window.Android.requestLocationPermission(); }catch(_){ }
+      }
+    }catch(_){ }
     if(!window.isSecureContext && location.protocol!=='file:'){
       gate('Koneksi halaman tidak aman sehingga akses lokasi diblokir browser.');return;
     }
@@ -4570,6 +4574,7 @@ renderAreas();
   }
 
   window.STT_REQUEST_GPS=request;
+  window.addEventListener('stt:android-location-permission',()=>setTimeout(request,300));
   const css=document.createElement('style');
   css.textContent='.stt-gps-blocked>*:not(#sttGpsGate){pointer-events:none}.stt-gps-blocked #sttGpsGate{pointer-events:auto;position:fixed;inset:0;background:#0008;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px}.stt-gps-card{background:#fff;border-radius:18px;padding:24px;max-width:420px;text-align:center;box-shadow:0 20px 60px #0003}.stt-gps-card h2{margin:0 0 10px;color:#b42318}.stt-gps-card p{color:#475569;line-height:1.6}.stt-gps-card button{border:0;border-radius:12px;padding:13px 20px;background:#0b3d91;color:#fff;font-weight:700}.stt-gps-err{margin:8px 0 14px;color:#64748b;font-size:12px;word-break:break-word}';
   document.head.appendChild(css);
@@ -4584,9 +4589,9 @@ renderAreas();
 (function(){
  document.addEventListener('DOMContentLoaded',function(){
   const admin=document.getElementById('adminSection'); if(!admin)return;
-  const box=document.createElement('div');box.id='sttDeviceManagement';box.className='card';box.style.marginTop='20px';box.style.display='none';
-  box.innerHTML='<h3 style="margin-top:0;color:var(--primary)"><i class="fas fa-mobile-screen-button"></i> DEVICE MANAGEMENT</h3><div class="small">Informasi rahasia perangkat — hanya tampil setelah ADMIN berhasil dibuka.</div><div id="sttDeviceId" style="font-weight:800;word-break:break-all;margin:8px 0 14px"></div><div id="sttGpsStatus" class="small">Memeriksa status GPS...</div><button id="sttRefreshGps" class="btn btn-primary" style="margin-top:12px"><i class="fas fa-location-crosshairs"></i> PERBARUI LOKASI</button>';
-  admin.appendChild(box);box.style.display=window.adminUnlocked?'block':'none';document.getElementById('sttDeviceId').textContent=window.STT_DEVICE_ID;
+  const box=document.createElement('div');box.id='sttDeviceManagement';box.className='card';box.style.marginTop='20px';
+  box.innerHTML='<h3 style="margin-top:0;color:var(--primary)"><i class="fas fa-mobile-screen-button"></i> DEVICE MANAGEMENT</h3><div class="small">ID instalasi perangkat ini</div><div id="sttDeviceId" style="font-weight:800;word-break:break-all;margin:8px 0 14px"></div><div id="sttGpsStatus" class="small">Memeriksa status GPS...</div><button id="sttRefreshGps" class="btn btn-primary" style="margin-top:12px"><i class="fas fa-location-crosshairs"></i> PERBARUI LOKASI</button>';
+  admin.appendChild(box);document.getElementById('sttDeviceId').textContent=window.STT_DEVICE_ID;
   function show(){const g=window.STT_GPS||{};document.getElementById('sttGpsStatus').textContent=g.allowed&&g.lat!=null?`GPS AKTIF • ${g.lat.toFixed(6)}, ${g.lng.toFixed(6)} • ±${Math.round(g.accuracy||0)} m`:'GPS BELUM DIIZINKAN';}
   document.getElementById('sttRefreshGps').onclick=()=>{window.STT_REQUEST_GPS();setTimeout(show,500)};setInterval(show,2000);show();
  });

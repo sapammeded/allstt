@@ -36,7 +36,7 @@
 
 <section id="report" class="panel"><div class="card"><div class="label">📊 REPORT 1×24 JAM</div><div class="hint">Pilih satu tanggal yang ingin dilihat. Format laporan mengikuti Hari/Tanggal pada ACCESS_LOG.</div><div class="formgrid"><div class="field"><label>TANGGAL REPORT</label><input id="rDate" type="date" aria-label="Tanggal Report"></div></div><div class="actions"><button id="generateReport" class="btn blue" type="button">📊 GENERATE REPORT</button><button id="exportReport" class="btn orange" type="button">⬇ EXPORT EXCEL</button><button id="printReport" class="btn" type="button">🖨 PRINT / PDF</button></div></div><div id="reportTable" class="empty">Pilih tanggal lalu Generate Report.</div></section>
 </main><div id="toast" class="toast"></div>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script>
 const GAS_API_URL="https://script.google.com/macros/s/AKfycbxdf0yjhiAEK6hTtC0L-nBBHOyFslWuY1q_qqpLvj5lAGcycCT4rrsGnxPouUwiyEmz/exec",CREATED_BY="Mbah Pri",$=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 let selected=null,lastReport=null;
@@ -63,18 +63,56 @@ function reportDateParts(){const v=$('rDate').value;if(!v)throw Error('Pilih tan
 function hariTanggal(v){const s=String(v??'').trim();let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(!m)return s;const d=Number(m[1]),mo=Number(m[2]),y=Number(m[3]);const dt=new Date(Date.UTC(y,mo-1,d));const hari=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][dt.getUTCDay()];return `${hari},${String(d).padStart(2,'0')}/${String(mo).padStart(2,'0')}/${y}`}
 function isoToLogDate(iso){const [y,m,d]=iso.split('-');return `${d}/${m}/${y}`}
 async function report(){try{const p=reportDateParts();const r=await call({action:'report',year:p.year,month:p.month},30000);const selectedLogDate=isoToLogDate(p.iso);const rows=(r.data.rows||[]).filter(x=>String(x.date||'').trim()===selectedLogDate);lastReport={...r.data,rows,reportDate:p.iso,reportLogDate:selectedLogDate};const a=rows;$('reportTable').className='tablewrap';$('reportTable').innerHTML=`<table class="table"><tr><th>Nama</th><th>Nomor Kendaraan</th><th>Bagian/Divisi</th><th>Jenis</th><th>Model</th><th>Warna</th><th>IN</th><th>OUT</th><th>Hari/Tanggal</th><th>Keterangan</th></tr>${a.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.plate)}</td><td>${esc(x.division)}</td><td>${esc(x.type)}</td><td>${esc(x.model)}</td><td>${esc(x.color)}</td><td>${esc(x.inTime)}</td><td>${esc(x.outTime)}</td><td>${esc(hariTanggal(x.date))}</td><td>${esc(x.notes)}</td></tr>`).join('')||'<tr><td colspan="10">Tidak ada data pada tanggal tersebut.</td></tr>'}</table>`}catch(e){$('reportTable').className='empty';$('reportTable').textContent='❌ '+e.message}}
-function exportReport(){if(!lastReport)return toast('Generate report dulu.');const clean=v=>String(v??'').replace(/CREATED\s*BY\s*:?\s*Mbah\s*Pri/ig,'').trim();const rows=(lastReport.rows||[]).map(x=>[clean(x.name),clean(x.plate),clean(x.division),clean(x.type),clean(x.model),clean(x.color),clean(x.inTime),clean(x.outTime),clean(hariTanggal(x.date)),clean(x.notes)]);const a=[['Nama','Nomor Kendaraan','Bagian/Divisi','Jenis Kendaraan','Model','Warna Kendaraan','Jam Masuk','Jam Keluar','Hari/Tanggal','Keterangan'],...rows],w=XLSX.utils.book_new(),s=XLSX.utils.aoa_to_sheet(a);XLSX.utils.book_append_sheet(w,s,'ACCESS_LOG');XLSX.writeFile(w,'VACS_ACCESS_LOG.xlsx')}
-function printReport(){const t=$('reportTable').querySelector('table');if(!t)return toast('Generate report dulu.');const w=window.open('','_blank');if(!w)return toast('Popup diblokir.');w.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;margin:18px}h2{margin:0 0 14px}.table{width:100%;border-collapse:collapse}.table th,.table td{border:1px solid #d8dee8;padding:7px;font-size:11px;text-align:left}.table th{background:#eef2f6}</style></head><body><h2>VACS — ACCESS REPORT</h2>'+t.outerHTML+'</body></html>');w.document.close();setTimeout(()=>w.print(),300)}
-function bindClick(id,fn){const el=$(id);if(el){el.addEventListener('click',function(ev){ev.preventDefault();fn(ev)},{passive:false})}}
-function bindEvents(){
- document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',function(ev){ev.preventDefault();document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));this.classList.add('active');const p=$(this.dataset.tab);if(p)p.classList.add('active');if(this.dataset.tab==='current')current();if(this.dataset.tab==='audit')audit()},{passive:false}));
- const searchEl=$('search');if(searchEl)searchEl.addEventListener('input',()=>{clearTimeout(window.__s);window.__s=setTimeout(search,220)});
- bindClick('inBtn',()=>gate('IN'));bindClick('outBtn',()=>gate('OUT'));bindClick('saveMasterBtn',saveM);bindClick('clearMasterBtn',clearM);
- bindClick('deleteVehicleBtn',async()=>{const plate=$('delPlate').value.trim(),pin=$('adminPin').value.trim();if(!plate||!pin)return toast('Nomor Kendaraan dan PIN wajib diisi.');const b=$('deleteVehicleBtn');b.disabled=true;try{const r=await call({action:'deleteVehicle',plate,pin},20000);if(!r.ok)throw Error(r.message);$('deleteResult').textContent='✓ '+r.data.message;$('deleteResult').className='result show ok';$('delPlate').value='';$('adminPin').value='';dash()}catch(e){$('deleteResult').textContent='❌ '+e.message;$('deleteResult').className='result show err'}finally{b.disabled=false}});
- bindClick('importBtn',importM);bindClick('templateBtn',template);bindClick('refreshCurrent',current);bindClick('refreshAudit',audit);
- const auditSearch=$('auditSearch');if(auditSearch)auditSearch.addEventListener('input',()=>{clearTimeout(window.__a);window.__a=setTimeout(audit,250)});
- bindClick('backupBtn',backup);bindClick('generateReport',report);bindClick('exportReport',exportReport);bindClick('printReport',printReport);
- const rd=$('rDate');if(rd)rd.value=new Date().toISOString().slice(0,10);
+function downloadBlob(blob,name){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=name;a.rel='noopener';a.style.display='none';
+  document.body.appendChild(a);
+  try{a.click()}catch(_){}
+  setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1500);
+}
+function exportReport(){
+  if(!lastReport)return toast('Generate report dulu.');
+  try{
+    const clean=v=>String(v??'').replace(/CREATED\\s*BY\\s*:?\\s*Mbah\\s*Pri/ig,'').trim();
+    const rows=(lastReport.rows||[]).map(x=>[
+      clean(x.name),clean(x.plate),clean(x.division),clean(x.type),clean(x.model),clean(x.color),
+      clean(x.inTime),clean(x.outTime),clean(hariTanggal(x.date)),clean(x.notes)
+    ]);
+    const a=[['Nama','Nomor Kendaraan','Bagian/Divisi','Jenis Kendaraan','Model','Warna Kendaraan','Jam Masuk','Jam Keluar','Hari/Tanggal','Keterangan'],...rows];
+    const w=XLSX.utils.book_new(),s=XLSX.utils.aoa_to_sheet(a);
+    XLSX.utils.book_append_sheet(w,s,'ACCESS_LOG');
+    const out=XLSX.write(w,{bookType:'xlsx',type:'array'});
+    downloadBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'VACS_ACCESS_LOG.xlsx');
+    toast('✅ Excel berhasil disiapkan untuk diunduh.');
+  }catch(e){toast('❌ Export Excel gagal: '+(e.message||e))}
+}
+function printReport(){
+  const t=$('reportTable').querySelector('table');
+  if(!t)return toast('Generate report dulu.');
+  try{
+    const C=window.jspdf?.jsPDF;
+    if(C){
+      const doc=new C({orientation:'landscape',unit:'mm',format:'a4'});
+      const rows=Array.from(t.querySelectorAll('tr')).slice(1).map(tr=>Array.from(tr.children).map(td=>td.textContent.trim()));
+      const head=Array.from(t.querySelectorAll('tr:first-child th')).map(th=>th.textContent.trim());
+      doc.setFontSize(14);doc.text('VACS — ACCESS REPORT',14,12);
+      doc.setFontSize(8);doc.text('Hari/Tanggal mengikuti ACCESS_LOG CENTRAL',14,18);
+      if(typeof doc.autoTable==='function'){
+        doc.autoTable({startY:23,head:[head],body:rows,theme:'grid',styles:{fontSize:7,cellPadding:1.7},headStyles:{fillColor:[27,83,139],textColor:255}});
+      }else{
+        let y=28;doc.setFontSize(7);doc.text(head.join(' | '),14,y);y+=5;
+        rows.forEach(r=>{doc.text(r.join(' | '),14,y,{maxWidth:270});y+=4;if(y>195){doc.addPage();y=15}});
+      }
+      doc.save('VACS_ACCESS_REPORT_'+(lastReport?.reportDate||'').replace(/-/g,'')+'.pdf');
+      toast('✅ PDF berhasil disiapkan untuk diunduh.');
+      return;
+    }
+  }catch(e){toast('PDF generator gagal: '+(e.message||e))}
+  const w=window.open('','_blank');
+  if(!w)return toast('Popup diblokir. Gunakan browser dengan izin popup.');
+  w.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;margin:18px}h2{margin:0 0 14px}.table{width:100%;border-collapse:collapse}.table th,.table td{border:1px solid #d8dee8;padding:7px;font-size:11px;text-align:left}.table th{background:#eef2f6}</style></head><body><h2>VACS — ACCESS REPORT</h2>'+t.outerHTML+'</body></html>');
+  w.document.close();setTimeout(()=>w.print(),300);
 }
 bindEvents();
 (async()=>{if(await health())await dash()})();
