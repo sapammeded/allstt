@@ -17,6 +17,9 @@ jobs:
       - name: Apply ONLY HVSS2 Key Loan Log patch
         run: python3 apply_hvss2_keylog_patch.py
 
+      - name: Apply HVSS2 PDF fallback for Android WebView
+        run: python3 apply_hvss2_pdf_fallback.py
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -66,6 +69,8 @@ jobs:
           grep -q 'data-page="keylogPage"' hvss2.html
           grep -q 'id="keyLogBody"' hvss2.html
           grep -q 'id="keyLogPdf"' hvss2.html
+          grep -q 'HVSS-PDF-FALLBACK-V2' hvss2.html
+          grep -q 'HVSS_PDF_FALLBACK' hvss2.html
 
       - name: Verify baseline Kamera & Area Patroli exists
         run: |
