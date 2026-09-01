@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FORM PATROLI PROFESIONAL SECURITY</title>
+<title>FORM PATROLI PROFESIONAL SECURITY — MASTER</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1195,6 +1195,23 @@ header .subtitle{font-size:1rem}
 #companySection input, #companySection textarea { font-size:16px; }
 </style>
 
+<style id="stt-admin-control-css">
+/* ADMIN CONTROL CENTER - STT MASTER */
+body:not(.admin-unlocked) #companySection{display:none !important;}
+.admin-panel{margin-top:20px;background:linear-gradient(145deg,#ffffff,#f7faff);border:1px solid #dbe5f0;border-left:6px solid #0b3d91;border-radius:20px;padding:22px;box-shadow:0 10px 28px rgba(15,23,42,.10)}
+.admin-panel h3{margin:0 0 8px;color:#0b3d91;font-size:22px;font-weight:900}
+.admin-panel .admin-sub{color:#64748b;line-height:1.5;margin-bottom:16px}
+.admin-login-box{display:grid;gap:10px}
+.admin-login-box input{width:100%;box-sizing:border-box;padding:14px 15px;border:2px solid #dbe3ec;border-radius:12px;font-size:16px;background:#fff}
+.admin-status{display:flex;align-items:center;gap:9px;padding:12px 14px;border-radius:12px;background:#eef6ff;color:#0b3d91;font-weight:800;margin-bottom:14px}
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.admin-action-card{padding:15px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}
+.admin-action-card h4{margin:0 0 6px;color:#172033;font-size:16px}
+.admin-action-card p{margin:0;color:#64748b;font-size:13px;line-height:1.45}
+.download-folder-box{margin-top:14px;padding:15px;border:1px dashed #b9c8dc;border-radius:14px;background:#fbfdff}
+.download-folder-status{margin-top:8px;color:#64748b;font-size:13px;word-break:break-word}
+@media(max-width:700px){.admin-grid{grid-template-columns:1fr}}
+</style>
 <style id="hidden-face-gallery-style">
 /* HIDDEN_FACE_GALLERY_V2 */
 #cameraGalleryPassword,
@@ -1237,7 +1254,7 @@ header .subtitle{font-size:1rem}
   <div class="side-group-title">Laporan</div>
   <button class="nav-item" data-target="top"><i class="fas fa-house"></i><span>Beranda / Data Patroli</span></button>
   <button class="nav-item" data-target="officerSection"><i class="fas fa-id-badge"></i><span>Identitas & Foto Petugas</span></button>
-  <button class="nav-item" data-target="companySection"><i class="fas fa-building"></i><span>Kop Surat & Logo</span></button>
+  <button class="nav-item" data-action="admin-company"><i class="fas fa-building-columns"></i><span>Kop surat dan logo perusahaan</span></button>
   <button class="nav-item" data-target="signatureSection"><i class="fas fa-signature"></i><span>Tanda Tangan Digital</span></button>
 
   <div class="side-group-title">Patroli</div>
@@ -1247,13 +1264,15 @@ header .subtitle{font-size:1rem}
 
   <div class="nav-divider"></div>
   <button class="nav-item" data-target="exportSection"><i class="fas fa-file-pdf"></i><span>Export PDF</span></button>
+<button class="nav-item admin-nav-item" data-action="admin"><i class="fas fa-user-shield"></i><span>ADMIN</span></button>
+
 </aside>
 
 <!-- Modal Notifikasi Sapam Meded -->
 <div id="notificationModal">
   <div class="modal-content">
-    <h2><i class="fas fa-bullhorn"></i> PENGUMUMAN PENTING</h2>
-    <p>WE ARE NOTHING BUT WE ARE EVERYTHING...SALAM SAPAM MEDED</p>
+    <h2><i class="fas fa-bullhorn"></i> SALAM SAPAM MEDED</h2>
+    <p>WE ARE NOTHING BUT WE ARE EVERYTHING </p>
     <button id="aamiinBtn">LANJUTKAN <i class="fas fa-arrow-right"></i></button>
   </div>
 </div>
@@ -1318,10 +1337,10 @@ header .subtitle{font-size:1rem}
     </div>
 
     <!-- ==================== IDENTITAS PERUSAHAAN + KOP SURAT ==================== -->
-    <div id="companySection" style="margin-top:20px" class="menu-only-section" class="card menu-only-section">
+    <div id="companySection" style="margin-top:20px" class="card menu-only-section">
       <label><i class="fas fa-building"></i> IDENTITAS PERUSAHAAN & KOP SURAT RESMI</label>
       <div class="small" style="color:var(--muted);margin:6px 0 14px">
-        Data di bawah akan menjadi kop surat PDF. Perubahan logo dan identitas perusahaan dilindungi PASSWORD ADMIN LOGO.
+        Data di bawah menjadi kop surat PDF. Pengaturan ini hanya tersedia setelah akses ADMIN dibuka.
       </div>
 
       <div class="row">
@@ -1337,17 +1356,6 @@ header .subtitle{font-size:1rem}
           <label class="small">ALAMAT PERUSAHAAN</label>
           <textarea id="companyAddress" rows="2" placeholder="Alamat lengkap perusahaan..."
                     style="width:100%;padding:12px 15px;border:2px solid #e2e8f0;border-radius:10px;resize:vertical;"></textarea>
-        </div>
-      </div>
-
-      <div style="margin-top:14px">
-        <label class="small"><i class="fas fa-key"></i> PASSWORD ADMIN KOP & LOGO</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-          <input id="logoPassword" type="password" autocomplete="current-password"
-                 placeholder="Masukkan password..." style="flex:1;min-width:190px;padding:12px 15px;border:2px solid #e2e8f0;border-radius:10px;">
-          <button id="unlockLogoBtn" type="button" class="btn btn-primary">
-            <i class="fas fa-unlock"></i> BUKA PENGATURAN
-          </button>
         </div>
       </div>
 
@@ -1385,12 +1393,61 @@ header .subtitle{font-size:1rem}
         </div>
       </div>
 
-      <div style="margin-top:10px">
-        <button id="changeLogoPasswordBtn" type="button" class="btn btn-ghost">
-          <i class="fas fa-key"></i> GANTI PASSWORD ADMIN
-        </button>
-      </div>
     </div>
+
+
+    <!-- ==================== ADMIN CONTROL CENTER ==================== -->
+    <section id="adminSection" class="admin-panel menu-only-section">
+      <h3><i class="fas fa-user-shield"></i> ADMIN CONTROL CENTER</h3>
+      <div class="admin-sub">Semua pengaturan sensitif aplikasi berada di sini. Akses hanya untuk administrator yang mengetahui kunci ADMIN.</div>
+      <div id="adminLockedView">
+        <div class="admin-status"><i class="fas fa-lock"></i><span>ADMIN TERKUNCI</span></div>
+        <div class="admin-login-box">
+          <input id="adminAccessPassword" type="password" autocomplete="current-password" placeholder="Masukkan kunci ADMIN">
+          <button id="adminUnlockBtn" type="button" class="btn btn-primary"><i class="fas fa-unlock"></i> BUKA ADMIN</button>
+        </div>
+      </div>
+      <div id="adminUnlockedView" style="display:none">
+        <div class="admin-status"><i class="fas fa-shield-check"></i><span>ADMIN AKTIF — PENGATURAN TERBUKA</span></div>
+        <div class="admin-grid">
+          <div class="admin-action-card"><h4><i class="fas fa-building"></i> Identitas Perusahaan</h4><p>Edit nama, alamat, dan kop surat perusahaan.</p><button id="adminCompanyBtn" type="button" class="btn btn-primary" style="margin-top:10px;width:100%">BUKA PENGATURAN</button></div>
+          <div class="admin-action-card"><h4><i class="fas fa-images"></i> Galeri Patroli</h4><p>ADMIN dapat membuka upload multiple foto dari galeri untuk area patroli.</p><div id="adminGalleryState" style="margin-top:10px;font-weight:800;color:#0b3d91">Akses galeri aktif selama sesi ini.</div></div>
+          <div class="admin-action-card"><h4><i class="fas fa-images"></i> Logo Kiri & Kanan</h4><p>Ganti logo perusahaan yang dipakai pada tampilan dan PDF.</p><div id="adminLogoState" style="margin-top:10px;font-weight:800;color:#0b3d91">Siap diatur.</div></div>
+          <div class="admin-action-card"><h4><i class="fas fa-key"></i> Kunci ADMIN</h4><p>Ganti kunci ADMIN tanpa mengubah fungsi patroli.</p><button id="changeLogoPasswordBtn" type="button" class="btn btn-ghost" style="margin-top:10px;width:100%"><i class="fas fa-key"></i> GANTI KUNCI ADMIN</button></div>
+        </div>
+        <div class="download-folder-box">
+          <h4 style="margin:0 0 6px;color:#172033"><i class="fas fa-folder-open"></i> Lokasi Penyimpanan Download</h4>
+          <div class="small" style="color:#64748b;line-height:1.5">Pilih folder tujuan untuk file PDF bila browser mendukung pemilihan folder. Jika tidak didukung, aplikasi memakai mekanisme download bawaan perangkat.</div>
+          <button id="chooseDownloadFolderBtn" type="button" class="btn btn-primary" style="margin-top:10px;width:100%"><i class="fas fa-folder-tree"></i> PILIH FOLDER DOWNLOAD</button>
+          <div id="downloadFolderStatus" class="download-folder-status">Belum ada folder khusus dipilih.</div>
+        </div>
+                <!-- PENGATURAN KUNCI GALERI -->
+        <div class="card" style="margin-top:16px;border-left:5px solid var(--warning);">
+          <div style="font-weight:800;color:var(--primary);margin-bottom:8px">
+            <i class="fas fa-key"></i> PENGATURAN AKSES GALERI
+          </div>
+          <div class="small" style="margin-bottom:10px">
+            Akses galeri hanya dibuka untuk sesi ADMIN yang sah. Gunakan pengaturan ini untuk mengganti kunci akses galeri.
+          </div>
+          <div style="display:grid;gap:8px">
+            <input id="currentGalleryPassword" type="password" autocomplete="current-password"
+                   placeholder="Kunci saat ini">
+            <input id="newGalleryPassword" type="password" autocomplete="new-password"
+                   placeholder="Kunci baru (min. 4 karakter)">
+            <input id="confirmGalleryPassword" type="password" autocomplete="new-password"
+                   placeholder="Ulangi kunci baru">
+            <button id="changeGalleryPasswordBtn" type="button" class="btn btn-warning">
+              <i class="fas fa-key"></i> SIMPAN KUNCI BARU
+            </button>
+          </div>
+        </div>
+
+
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+          <button id="adminLogoutBtn" type="button" class="btn btn-ghost"><i class="fas fa-lock"></i> KUNCI KEMBALI ADMIN</button>
+        </div>
+      </div>
+    </section>
 
     <!-- ==================== TANDA TANGAN DENGAN PERBAIKAN SCROLL ==================== -->
     <div id="signatureSection" style="margin-top:20px" class="menu-only-section">
@@ -1441,7 +1498,7 @@ header .subtitle{font-size:1rem}
             <div class="guide-step-number">2</div>
             <div class="guide-step-content">
               <h4>LOGO & TANDA TANGAN DIGITAL</h4>
-              <p>Logo default sudah terpasang. Untuk logo custom, masukkan password khusus. Buat tanda tangan digital dengan nama lengkap.</p>
+              <p>Logo default sudah terpasang. Pengaturan logo custom tersedia melalui menu ADMIN. Buat tanda tangan digital dengan nama lengkap.</p>
               <div class="guide-tip">
                 <i class="fas fa-lightbulb"></i> <strong>Tip:</strong> Tanda tangan bisa digambar langsung di canvas dengan mouse atau jari (untuk touchscreen).
               </div>
@@ -1474,9 +1531,9 @@ header .subtitle{font-size:1rem}
             <div class="guide-step-number">5</div>
             <div class="guide-step-content">
               <h4>TAMBAH FOTO DARI GALERI (OPSIONAL)</h4>
-              <p>Untuk akses galeri, buka menu ☰ → pilih <strong>Kamera & Area Patroli</strong> → masukkan password untuk membuka akses galeri.</p>
+              <p>Akses galeri hanya tersedia untuk ADMIN. Setelah ADMIN dibuka, pilih area patroli lalu gunakan fitur upload multiple dari galeri.</p>
               <div class="guide-warning">
-                <i class="fas fa-lock"></i> <strong>Security:</strong> Hanya personel berwenang yang bisa akses galeri.
+                <i class="fas fa-shield-halved"></i> <strong>Security:</strong> Upload dari galeri hanya tersedia untuk ADMIN.
               </div>
             </div>
           </div>
@@ -1540,7 +1597,7 @@ header .subtitle{font-size:1rem}
           <div class="small" style="margin-top:8px;color:var(--muted)">Pilih area mana yang akan menerima foto dari kamera</div>
         </div>
 
-        <!-- SATU FITUR KAMERA: kamera HP + galeri terkunci password -->
+        <!-- SATU FITUR KAMERA: kamera HP + galeri terkunci ADMIN -->
         <div style="text-align:center; margin:28px 0">
           <button type="button" class="camera-native-btn" id="openCameraMenu" style="border:0;width:100%;cursor:pointer">
             <i class="fas fa-camera"></i> KAMERA HP
@@ -1548,33 +1605,13 @@ header .subtitle{font-size:1rem}
           <input type="file" id="nativeCameraInput" accept="image/*" capture="environment" style="display:none" />
           <input type="file" id="galleryCameraInput" accept="image/*" multiple style="display:none" />
           <div class="quality-notice" style="margin-top:14px">
-            <i class="fas fa-camera"></i> <strong>Ambil foto langsung dari kamera bawaan HP.</strong>
+            <i class="fas fa-camera"></i> <strong>Ambil foto langsung melalui kamera yang tersedia pada perangkat.</strong>
           </div>
+          <div class="small" style="margin-top:8px;color:var(--muted)"><i class="fas fa-circle-info"></i> Pada APK Android, sistem dapat menampilkan aplikasi kamera yang kompatibel dan sudah terpasang.</div>
         </div>
 
-        <!-- Galeri hanya bisa dibuka setelah password benar -->
+        <!-- Galeri hanya bisa dibuka setelah ADMIN dibuka -->
         
-
-        <!-- PENGATURAN PASSWORD GALERI -->
-        <div class="card" style="margin-top:16px;border-left:5px solid var(--warning);">
-          <div style="font-weight:800;color:var(--primary);margin-bottom:8px">
-            <i class="fas fa-key"></i> GANTI PASSWORD GALERI
-          </div>
-          <div class="small" style="margin-bottom:10px">
-            Password ini mengunci fitur <strong>UPLOAD DARI GALERI</strong>. Password baru akan tersimpan di browser perangkat ini.
-          </div>
-          <div style="display:grid;gap:8px">
-            <input id="currentGalleryPassword" type="password" autocomplete="current-password"
-                   placeholder="Password saat ini">
-            <input id="newGalleryPassword" type="password" autocomplete="new-password"
-                   placeholder="Password baru (min. 4 karakter)">
-            <input id="confirmGalleryPassword" type="password" autocomplete="new-password"
-                   placeholder="Ulangi password baru">
-            <button id="changeGalleryPasswordBtn" type="button" class="btn btn-warning">
-              <i class="fas fa-key"></i> SIMPAN PASSWORD BARU
-            </button>
-          </div>
-        </div>
 
         <!-- Tombol Tambah Area untuk Camera Tab -->
         <div style="margin-top:28px;text-align:center">
@@ -1761,11 +1798,17 @@ header .subtitle{font-size:1rem}
 // ==================== KONFIGURASI AWAL ====================
 // GANTI URL LOGO DEFAULT DI SINI:
 const DEFAULT_LOGO_URL = "https://i.ibb.co.com/dJV2bjQR/IMG-20251123-001741.png";
+// MASTER BRANDING: edit nilai default ini langsung di stt.html bila diperlukan.
+const DEFAULT_COMPANY_NAME = "PT. NAMA PERUSAHAAN";
+const DEFAULT_COMPANY_ADDRESS = "Alamat lengkap perusahaan";
+const DEFAULT_LOGO_LEFT_URL = DEFAULT_LOGO_URL;
+const DEFAULT_LOGO_RIGHT_URL = DEFAULT_LOGO_URL;
+const DEFAULT_ADMIN_PASSWORD = "amdshadow7373";
 
 const DEFAULT_PATROL_DESCRIPTION = 'Kegiatan patroli area tersebut telah selesai dilaksanakan dengan hasil situasi terpantau terkendali aman dan kondusif, temuan menonjol serta kendala operasional nihil';
 
 // PASSWORD SYSTEM
-const DEFAULT_GALLERY_PASSWORD = "mbahpritampan"; // Password awal galeri
+const DEFAULT_GALLERY_PASSWORD = DEFAULT_ADMIN_PASSWORD; // Kunci awal galeri
 const GALLERY_PASSWORD_KEY = "patrol_gallery_password_v1";
 function getGalleryPassword(){
   try {
@@ -1784,7 +1827,18 @@ function setGalleryPassword(value){
     throw new Error('Password gagal disimpan: storage browser penuh.');
   }
 }
-const DEFAULT_LOGO_UPLOAD_PASSWORD = "mbahpritampan";
+const DEFAULT_LOGO_UPLOAD_PASSWORD = DEFAULT_ADMIN_PASSWORD;
+const ADMIN_PASSWORD_KEY = "patrol_admin_password_v2";
+function getAdminPassword(){
+  try { return localStorage.getItem(ADMIN_PASSWORD_KEY) || DEFAULT_ADMIN_PASSWORD; }
+  catch(e){ return DEFAULT_ADMIN_PASSWORD; }
+}
+function setAdminPassword(value){
+  const pw=String(value||'').trim();
+  if(pw.length<4) throw new Error('Kunci ADMIN minimal 4 karakter.');
+  try { localStorage.setItem(ADMIN_PASSWORD_KEY,pw); localStorage.setItem(LOGO_PASSWORD_KEY,pw); localStorage.setItem(GALLERY_PASSWORD_KEY,pw); }
+  catch(e){ throw new Error('Kunci ADMIN gagal disimpan: storage browser penuh.'); }
+}
 const LOGO_PASSWORD_KEY = "patrol_logo_password_v1";
 function getLogoUploadPassword(){
   try { return localStorage.getItem(LOGO_PASSWORD_KEY) || DEFAULT_LOGO_UPLOAD_PASSWORD; }
@@ -2250,7 +2304,7 @@ function setupSuperCleanup() {
   document.getElementById('uploadLogoLeft')?.addEventListener('change', async e=>{
     if(!logoUnlocked){
       e.target.value='';
-      alert('🔒 Masukkan password admin terlebih dahulu.');
+      alert('🔒 Buka ADMIN terlebih dahulu.');
       return;
     }
     try{
@@ -2267,7 +2321,7 @@ function setupSuperCleanup() {
   document.getElementById('uploadLogoRight')?.addEventListener('change', async e=>{
     if(!logoUnlocked){
       e.target.value='';
-      alert('🔒 Masukkan password admin terlebih dahulu.');
+      alert('🔒 Masukkan ADMIN terlebih dahulu.');
       return;
     }
     try{
@@ -2283,7 +2337,7 @@ function setupSuperCleanup() {
 
   document.getElementById('saveCompanyHeaderBtn')?.addEventListener('click',()=>{
     if(!logoUnlocked){
-      alert('🔒 Buka pengaturan dengan password admin terlebih dahulu.');
+      alert('🔒 Buka ADMIN terlebih dahulu.');
       return;
     }
 
@@ -2303,54 +2357,8 @@ function setupSuperCleanup() {
     }
   });
 
-  document.getElementById('unlockLogoBtn')?.addEventListener('click', ()=>{
-    const pw=document.getElementById('logoPassword')?.value || '';
-    if(pw === getLogoUploadPassword()){
-      logoUnlocked=true;
-      const sec=document.getElementById('logoUploadSection');
-      if(sec) sec.style.display='block';
-      updateLogoPreviews();
-      alert('✅ Password benar. Pengaturan kop surat dan dua logo terbuka.');
-    }else{
-      logoUnlocked=false;
-      const sec=document.getElementById('logoUploadSection');
-      if(sec) sec.style.display='none';
-      alert('❌ Password admin salah.');
-    }
-  });
-
-  document.getElementById('logoPassword')?.addEventListener('keydown',e=>{
-    if(e.key==='Enter') document.getElementById('unlockLogoBtn')?.click();
-  });
-
-  document.getElementById('changeLogoPasswordBtn')?.addEventListener('click',()=>{
-    const current=prompt('Masukkan password admin saat ini:');
-    if(current===null) return;
-    if(current !== getLogoUploadPassword()){
-      alert('❌ Password admin saat ini salah.'); return;
-    }
-    const next=prompt('Masukkan password admin baru (minimal 4 karakter):');
-    if(next===null) return;
-    const confirmNext=prompt('Ulangi password admin baru:');
-    if(confirmNext===null) return;
-    if(next !== confirmNext){
-      alert('❌ Konfirmasi password tidak sama.'); return;
-    }
-    try{
-      setLogoUploadPassword(next);
-      logoUnlocked=false;
-      document.getElementById('logoPassword').value='';
-      document.getElementById('logoUploadSection').style.display='none';
-      alert('✅ Password admin berhasil diganti.');
-    }catch(err){ alert('❌ Gagal mengganti password: '+err.message); }
-  });
-
   window.addEventListener('pageshow',()=>{
-    logoUnlocked=false;
-    const sec=document.getElementById('logoUploadSection');
-    const pw=document.getElementById('logoPassword');
-    if(sec) sec.style.display='none';
-    if(pw) pw.value='';
+    if(typeof setAdminUi==='function') setAdminUi(false);
   });
 
 
@@ -2482,12 +2490,12 @@ function setupSuperCleanup() {
     patrolData = {};
   }
   if(!patrolData || typeof patrolData !== 'object' || Array.isArray(patrolData)) patrolData = {};
-  let logoData = localStorage.getItem('patrol_logo_left_v1') || localStorage.getItem('patrol_logo_v1') || DEFAULT_LOGO_URL;
-  let logoDataRight = localStorage.getItem('patrol_logo_right_v1') || localStorage.getItem('patrol_logo_v1') || DEFAULT_LOGO_URL;
-  let companyName = localStorage.getItem('patrol_company_name_v1') || '';
+  let logoData = localStorage.getItem('patrol_logo_left_v1') || localStorage.getItem('patrol_logo_v1') || DEFAULT_LOGO_LEFT_URL;
+  let logoDataRight = localStorage.getItem('patrol_logo_right_v1') || localStorage.getItem('patrol_logo_v1') || DEFAULT_LOGO_RIGHT_URL;
+  let companyName = localStorage.getItem('patrol_company_name_v1') || DEFAULT_COMPANY_NAME;
   let companyEmail = localStorage.getItem('patrol_company_email_v1') || '';
   let companyPhone = localStorage.getItem('patrol_company_phone_v1') || '';
-  let companyAddress = localStorage.getItem('patrol_company_address_v1') || '';
+  let companyAddress = localStorage.getItem('patrol_company_address_v1') || DEFAULT_COMPANY_ADDRESS;
   let signatureData = localStorage.getItem('patrol_signature_v1') || null;
   let signatureName = localStorage.getItem('patrol_signature_name') || '';
   let galleryAccessGranted = false; // SESSION ONLY: password must be entered before gallery access
@@ -2602,6 +2610,9 @@ function setupSuperCleanup() {
     if(removeBtn) removeBtn.style.display = 'inline-flex';
   }
 
+  // Bridge untuk pengendali galeri yang dilindungi ADMIN. Tidak mengubah alur kamera.
+  window.saveOfficerPhoto = saveOfficerPhoto;
+
   document.getElementById('takeOfficerPhotoBtn')?.addEventListener('click', ()=>{
     const input = document.getElementById('officerPhotoInput');
     if(input) input.click();
@@ -2682,49 +2693,102 @@ function setupSuperCleanup() {
     }); 
   }
 
-  // ==================== LOGO SYSTEM DENGAN PASSWORD ====================
   let logoUnlocked = false;
 
-  document.getElementById('unlockLogoBtn')?.addEventListener('click', ()=>{
-    const pw=document.getElementById('logoPassword')?.value || '';
-    if(pw === getLogoUploadPassword()){
-      logoUnlocked=true;
-      const sec=document.getElementById('logoUploadSection');
-      if(sec) sec.style.display='block';
-      alert('✅ Password logo benar. Sekarang pilih logo perusahaan.');
+  // ==================== ADMIN CONTROL CENTER ====================
+  let adminUnlocked = false;
+  let preferredDownloadDirectory = null;
+
+  function setAdminUi(unlocked){
+    adminUnlocked = !!unlocked;
+    // Sinkronkan status ke window agar modul pengunci galeri/foto
+    // yang berjalan terpisah membaca status ADMIN yang sama.
+    window.adminUnlocked = adminUnlocked;
+    document.body.classList.toggle('admin-unlocked', adminUnlocked);
+    const locked=document.getElementById('adminLockedView');
+    const open=document.getElementById('adminUnlockedView');
+    if(locked) locked.style.display=adminUnlocked?'none':'block';
+    if(open) open.style.display=adminUnlocked?'block':'none';
+    const uploadSec=document.getElementById('logoUploadSection');
+    if(uploadSec) uploadSec.style.display=adminUnlocked?'block':'none';
+    const devicePanel=document.getElementById('sttDeviceManagement');
+    if(devicePanel) devicePanel.style.display=adminUnlocked?'block':'none';
+    logoUnlocked=adminUnlocked;
+    if(adminUnlocked){
+      window.allsttGalleryUnlocked=true;
+      galleryAccessGranted=true;
+      try{ renderAreas(); }catch(e){}
+      try{ updateLogoPreviews(); }catch(e){}
     }else{
-      logoUnlocked=false;
-      const sec=document.getElementById('logoUploadSection');
-      if(sec) sec.style.display='none';
-      alert('❌ Password logo salah.');
+      window.allsttGalleryUnlocked=false;
+      galleryAccessGranted=false;
+      if(uploadSec) uploadSec.style.display='none';
+      try{ renderAreas(); }catch(e){}
+    }
+  }
+
+  document.getElementById('adminUnlockBtn')?.addEventListener('click',()=>{
+    const value=document.getElementById('adminAccessPassword')?.value||'';
+    if(value===getAdminPassword()){
+      document.getElementById('adminAccessPassword').value='';
+      setAdminUi(true);
+      alert('✅ ADMIN berhasil dibuka.');
+    }else{
+      alert('❌ Kunci ADMIN salah.');
     }
   });
-
-  document.getElementById('logoPassword')?.addEventListener('keydown',(e)=>{
-    if(e.key==='Enter') document.getElementById('unlockLogoBtn')?.click();
-  });
-
+  document.getElementById('adminAccessPassword')?.addEventListener('keydown',e=>{if(e.key==='Enter') document.getElementById('adminUnlockBtn')?.click();});
+  document.getElementById('adminLogoutBtn')?.addEventListener('click',()=>{setAdminUi(false); alert('🔒 ADMIN dikunci kembali.');});
   document.getElementById('changeLogoPasswordBtn')?.addEventListener('click',()=>{
-    const current=prompt('Masukkan password logo saat ini:');
+    if(!adminUnlocked){ alert('🔒 Buka ADMIN terlebih dahulu.'); return; }
+    const current=prompt('Masukkan kunci ADMIN saat ini:');
     if(current===null) return;
-    if(current !== getLogoUploadPassword()){
-      alert('❌ Password logo saat ini salah.'); return;
-    }
-    const next=prompt('Masukkan password logo baru (minimal 4 karakter):');
+    if(current !== getAdminPassword()){ alert('❌ Kunci ADMIN saat ini salah.'); return; }
+    const next=prompt('Masukkan kunci ADMIN baru (minimal 4 karakter):');
     if(next===null) return;
-    const confirmNext=prompt('Ulangi password logo baru:');
+    const confirmNext=prompt('Ulangi kunci ADMIN baru:');
     if(confirmNext===null) return;
-    if(next !== confirmNext){
-      alert('❌ Konfirmasi password tidak sama.'); return;
+    if(next !== confirmNext){ alert('❌ Konfirmasi kunci ADMIN tidak sama.'); return; }
+    try{
+      setAdminPassword(next);
+      alert('✅ Kunci ADMIN berhasil diganti.');
+    }catch(err){ alert('❌ Gagal mengganti kunci ADMIN: '+err.message); }
+  });
+  document.getElementById('adminCompanyBtn')?.addEventListener('click',()=>{
+    const el=document.getElementById('companySection');
+    if(!adminUnlocked || !el) return;
+    el.classList.add('menu-section-open');
+    el.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+
+  document.getElementById('chooseDownloadFolderBtn')?.addEventListener('click',async()=>{
+    if(!adminUnlocked){alert('🔒 Buka ADMIN terlebih dahulu.');return;}
+    if(typeof window.showDirectoryPicker!=='function'){
+      alert('⚠️ Browser/perangkat ini tidak mendukung pemilihan folder diretamente. Download tetap memakai folder bawaan perangkat.');
+      return;
     }
     try{
-      setLogoUploadPassword(next);
-      logoUnlocked=false;
-      document.getElementById('logoPassword').value='';
-      document.getElementById('logoUploadSection').style.display='none';
-      alert('✅ Password logo berhasil diganti.');
-    }catch(err){ alert('❌ Gagal mengganti password: '+err.message); }
+      preferredDownloadDirectory=await window.showDirectoryPicker({mode:'readwrite'});
+      const status=document.getElementById('downloadFolderStatus');
+      if(status) status.textContent='✅ Folder tujuan dipilih untuk sesi ini.';
+    }catch(e){
+      if(e?.name!=='AbortError') alert('❌ Folder tidak dapat dipilih: '+(e?.message||e));
+    }
   });
+
+  async function saveBlobToPreferredFolder(blob,filename){
+    if(!preferredDownloadDirectory || typeof preferredDownloadDirectory.getFileHandle!=='function') return false;
+    try{
+      const handle=await preferredDownloadDirectory.getFileHandle(filename,{create:true});
+      const writable=await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    }catch(e){
+      console.warn('[DOWNLOAD FOLDER] Fallback to browser download:',e);
+      return false;
+    }
+  }
 
   // ==================== SIGNATURE PAD — V26 ANDROID FIX ====================
   const signatureCanvas = document.getElementById('signaturePad');
@@ -3477,7 +3541,7 @@ function setupSuperCleanup() {
       
       try {
         patrolData = {};
-        logoData = DEFAULT_LOGO_URL;
+        logoData = DEFAULT_LOGO_LEFT_URL;
         signatureData = null;
         signatureName = '';
         galleryAccessGranted = false;
@@ -3508,10 +3572,10 @@ function setupSuperCleanup() {
           tx.objectStore(STORE_META).clear();
         }
         
-        try{ localStorage.removeItem(LOGO_PASSWORD_KEY); localStorage.removeItem('patrol_logo_left_v1'); localStorage.removeItem('patrol_logo_right_v1'); localStorage.removeItem('patrol_company_name_v1'); localStorage.removeItem('patrol_company_email_v1'); localStorage.removeItem('patrol_company_phone_v1'); localStorage.removeItem('patrol_company_address_v1'); }catch(_ ){}
-        document.getElementById('logoImg').src = DEFAULT_LOGO_URL;
+        try{ localStorage.removeItem(LOGO_PASSWORD_KEY); localStorage.removeItem(ADMIN_PASSWORD_KEY); localStorage.removeItem('patrol_logo_left_v1'); localStorage.removeItem('patrol_logo_right_v1'); localStorage.removeItem('patrol_company_name_v1'); localStorage.removeItem('patrol_company_email_v1'); localStorage.removeItem('patrol_company_phone_v1'); localStorage.removeItem('patrol_company_address_v1'); }catch(_ ){}
+        document.getElementById('logoImg').src = DEFAULT_LOGO_LEFT_URL;
         logoData = DEFAULT_LOGO_URL;
-        logoDataRight = DEFAULT_LOGO_URL;
+        logoDataRight = DEFAULT_LOGO_RIGHT_URL;
         companyName = companyEmail = companyPhone = companyAddress = '';
         document.getElementById('signatureName').value = '';
         document.getElementById('logoPassword').value = '';
@@ -4048,8 +4112,10 @@ function setupSuperCleanup() {
       const filename = `${filenameOfficer}_${filenameDate}_${filenameShift}.pdf`;
       const blob = pdf.output('blob');
 
-      // Always download first, then sync the exact same PDF to the configured cloud queue.
-      pdf.save(filename);
+      // Download ke folder pilihan ADMIN bila browser mendukung; fallback tetap ke download bawaan.
+      const savedToFolder = await saveBlobToPreferredFolder(blob,filename);
+      if(!savedToFolder) pdf.save(filename);
+      // Always sync the exact same PDF blob to the configured cloud queue.
       let syncId = null;
       try{
         syncId = await queuePdfForSync(blob,filename,{
@@ -4216,6 +4282,28 @@ window.addEventListener('beforeunload', function() {
       item.addEventListener('click',()=>{
         const target=item.dataset.target;
         const tab=item.dataset.tab;
+        const action=item.dataset.action;
+
+        if(action==='admin' || action==='admin-company'){
+          if(!adminUnlocked){
+            const adminEl=document.getElementById('adminSection');
+            if(adminEl){
+              document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));
+              adminEl.classList.add('menu-section-open');
+              closeMenu();
+              setTimeout(()=>adminEl.scrollIntoView({behavior:'smooth',block:'start'}),60);
+            }
+            return;
+          }
+          const targetEl=action==='admin-company'?document.getElementById('companySection'):document.getElementById('adminSection');
+          if(targetEl){
+            document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));
+            targetEl.classList.add('menu-section-open');
+            closeMenu();
+            setTimeout(()=>targetEl.scrollIntoView({behavior:'smooth',block:'start'}),60);
+          }
+          return;
+        }
 
         if(tab){
           document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));
@@ -4250,7 +4338,7 @@ window.addEventListener('beforeunload', function() {
     sideNav.querySelector('.nav-item[data-target="top"]')?.classList.add('active');
 
     // Update active navigation while scrolling through major sections.
-    const sections=['top','officerSection','companySection','signatureSection','exportSection']
+    const sections=['top','officerSection','companySection','signatureSection','adminSection','exportSection']
       .map(id=>document.getElementById(id)).filter(Boolean);
 
     if('IntersectionObserver' in window){
@@ -4264,6 +4352,8 @@ window.addEventListener('beforeunload', function() {
       sections.forEach(el=>io.observe(el));
     }
   })();
+
+  setAdminUi(false);
 
   // V24 startup: main screen is strictly the patrol workflow.
   document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));
@@ -4380,78 +4470,10 @@ renderAreas();
 
 
 
-<!-- ALLSTT_COMPANY_IDENTITY_V1 -->
-<script>
-(function(){
- const KEY='ALLSTT_GLOBAL_COMPANY_IDENTITY_V1';
- const DEFAULT={name:'',address:'',leftLogo:'',rightLogo:''};
- function load(){try{return Object.assign({},DEFAULT,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {...DEFAULT}}}
- function save(v){localStorage.setItem(KEY,JSON.stringify(v));apply(v)}
- function apply(v){
-   document.querySelectorAll('[data-company-name],#companyName,.company-name').forEach(e=>{if('value' in e)e.value=v.name;e.textContent=v.name});
-   document.querySelectorAll('[data-company-address],#companyAddress,.company-address').forEach(e=>{if('value' in e)e.value=v.address;e.textContent=v.address});
-   const imgs=document.querySelectorAll('[data-company-logo-left],#companyLogoLeft,.company-logo-left'); if(imgs.length&&v.leftLogo) imgs.forEach(e=>e.src=v.leftLogo);
-   const imgs2=document.querySelectorAll('[data-company-logo-right],#companyLogoRight,.company-logo-right'); if(imgs2.length&&v.rightLogo) imgs2.forEach(e=>e.src=v.rightLogo);
-   window.ALLSTT_COMPANY_IDENTITY=v;
- }
- function reader(file,cb){if(!file)return;const r=new FileReader();r.onload=()=>cb(r.result);r.readAsDataURL(file)}
- function panel(){
-   if(document.getElementById('allsttCompanyIdentityPanel'))return;
-   const host=document.querySelector('.container')||document.body;
-   const box=document.createElement('section');box.id='allsttCompanyIdentityPanel';box.className='company-identity-settings';
-   box.innerHTML=`<h3>Pengaturan Identitas Perusahaan</h3><div class="identity-grid"><div><label>Nama Perusahaan</label><input id="ciName" type="text"></div><div><label>Alamat Perusahaan</label><input id="ciAddress" type="text"></div><div><label>Logo Kiri</label><input id="ciLeft" type="file" accept="image/*"><img id="ciLeftPreview"></div><div><label>Logo Kanan</label><input id="ciRight" type="file" accept="image/*"><img id="ciRightPreview"></div></div><div class="identity-actions"><button class="btn btn-primary" id="ciSave">Simpan Identitas</button><button class="btn btn-ghost" id="ciReset">Reset Default</button></div>`;
-   host.insertBefore(box,host.firstChild);
-   const v=load();ciName.value=v.name;ciAddress.value=v.address;ciLeftPreview.src=v.leftLogo||'';ciRightPreview.src=v.rightLogo||'';
-   ciLeft.onchange=e=>reader(e.target.files[0],x=>ciLeftPreview.src=x);ciRight.onchange=e=>reader(e.target.files[0],x=>ciRightPreview.src=x);
-   ciSave.onclick=()=>save({name:ciName.value.trim(),address:ciAddress.value.trim(),leftLogo:ciLeftPreview.src||'',rightLogo:ciRightPreview.src||''});
-   ciReset.onclick=()=>{localStorage.removeItem(KEY);const d=load();ciName.value=d.name;ciAddress.value=d.address;ciLeftPreview.src='';ciRightPreview.src='';apply(d)};
- }
- document.addEventListener('DOMContentLoaded',()=>{panel();apply(load())});
-})();
-</script>
-
-
-
-
-
-<script id="ALLSTT-COMPANY-IDENTITY-DUAL-SAVE">
-(function(){
-  'use strict';
-  function install(){
-    const protectedBtn=document.getElementById('saveCompanyHeaderBtn');
-    if(!protectedBtn || document.getElementById('saveCompanyIdentityNoPasswordBtn')) return;
-    const btn=document.createElement('button');
-    btn.id='saveCompanyIdentityNoPasswordBtn';
-    btn.type='button';
-    btn.className='btn btn-success';
-    btn.style.cssText='margin-top:8px;width:100%';
-    btn.innerHTML='<i class="fas fa-save"></i> SIMPAN IDENTITAS PERUSAHAAN (TANPA PASSWORD)';
-    protectedBtn.parentNode.insertBefore(btn,protectedBtn.nextSibling);
-    btn.addEventListener('click',function(){
-      const name=(document.getElementById('companyName')?.value||'').trim();
-      const address=(document.getElementById('companyAddress')?.value||'').trim();
-      try{
-        localStorage.setItem('patrol_company_name_v1',name);
-        localStorage.setItem('patrol_company_address_v1',address);
-        localStorage.setItem('ALLSTT_GLOBAL_COMPANY_IDENTITY_V1',JSON.stringify({name,address,leftLogo:localStorage.getItem('patrol_logo_left_v1')||'',rightLogo:localStorage.getItem('patrol_logo_right_v1')||''}));
-        if(typeof companyName!=='undefined') companyName=name;
-        if(typeof companyAddress!=='undefined') companyAddress=address;
-        if(window.ALLSTT_COMPANY_IDENTITY) window.ALLSTT_COMPANY_IDENTITY.name=name,window.ALLSTT_COMPANY_IDENTITY.address=address;
-        alert('✅ Nama dan alamat perusahaan berhasil disimpan tanpa password.');
-      }catch(e){ alert('❌ Gagal menyimpan identitas perusahaan: '+(e?.message||e)); }
-    });
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true}); else install();
-  window.addEventListener('load',install);
-  [300,800,1500].forEach(ms=>setTimeout(install,ms));
-})();
-</script>
 <script id="ALLSTT-STT-FACE-GALLERY-FINAL">
 (function(){
   'use strict';
-  const PASSWORD_FALLBACK='mbahpritampan';
   const DOUBLE_TAP_MS=380;
-  function expectedPassword(){try{return typeof getGalleryPassword==='function'?getGalleryPassword():PASSWORD_FALLBACK}catch(_){return PASSWORD_FALLBACK}}
   function unlock(){window.allsttGalleryUnlocked=true;try{renderAreas()}catch(_){}try{updateAreaSelector()}catch(_){} }
   function install(){
     const face=document.getElementById('takeOfficerPhotoBtn');
@@ -4467,12 +4489,11 @@ renderAreas();
     function openCamera(){reset();cam.value='';cam.click()}
     function openGallery(){
       reset();
-      if(!window.allsttGalleryUnlocked){
-        const pw=window.prompt('Masukkan password untuk membuka Upload Foto dari Galeri:');
-        if(pw===null)return;
-        if(pw!==expectedPassword()){window.alert('❌ Password salah. Akses galeri ditolak.');return}
-        unlock();
+      if(!window.adminUnlocked){
+        window.alert('🔒 Buka ADMIN terlebih dahulu untuk menggunakan foto dari galeri.');
+        return;
       }
+      unlock();
       gal.value='';gal.click();
     }
     btn.addEventListener('click',function(e){
@@ -4493,6 +4514,82 @@ renderAreas();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
   window.addEventListener('load',install);[300,800,1500,2500].forEach(ms=>setTimeout(install,ms));
+})();
+</script>
+<script>
+/* STT MASTER - DEVICE & GPS CONTROL (additive only) */
+(function(){
+  const DEVICE_KEY='STT_INSTALLATION_ID_V1';
+  const GPS_KEY='STT_GPS_CONSENT_V2';
+  const id=localStorage.getItem(DEVICE_KEY)||('STT-'+cryptoRandom());
+  localStorage.setItem(DEVICE_KEY,id);
+  function cryptoRandom(){try{const a=new Uint32Array(3);crypto.getRandomValues(a);return Array.from(a).map(x=>x.toString(36)).join('').toUpperCase()}catch(e){return Date.now().toString(36).toUpperCase()}}
+  window.STT_DEVICE_ID=id;
+  window.STT_GPS={lat:null,lng:null,accuracy:null,updatedAt:null,allowed:false,error:null};
+
+  function gate(message){
+    document.body.classList.add('stt-gps-blocked');
+    let el=document.getElementById('sttGpsGate');
+    if(!el){
+      el=document.createElement('div');el.id='sttGpsGate';
+      el.innerHTML='<div class="stt-gps-card"><h2>📍 Izin Lokasi Wajib</h2><p id="sttGpsMsg"></p><div id="sttGpsErr" class="stt-gps-err"></div><button id="sttGpsRetry" type="button">IZINKAN LOKASI</button></div>';
+      document.body.appendChild(el);
+      document.getElementById('sttGpsRetry').onclick=request;
+    }
+    document.getElementById('sttGpsMsg').textContent=message||'Aplikasi ini memerlukan izin lokasi untuk menjalankan patroli. Izinkan lokasi untuk melanjutkan.';
+  }
+
+  function granted(pos){
+    window.STT_GPS={lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:pos.coords.accuracy,updatedAt:new Date().toISOString(),allowed:true,error:null};
+    localStorage.setItem(GPS_KEY,'granted');
+    const g=document.getElementById('sttGpsGate');if(g)g.remove();
+    document.body.classList.remove('stt-gps-blocked');
+    window.dispatchEvent(new CustomEvent('stt:gps-ready',{detail:window.STT_GPS}));
+  }
+
+  function failed(err){
+    window.STT_GPS.allowed=false;window.STT_GPS.error=err&&err.code;
+    let text='Izin lokasi belum diberikan.';
+    if(err&&err.code===1) text='Izin lokasi ditolak. Tekan IZINKAN LOKASI lalu izinkan lokasi pada dialog Android.';
+    else if(err&&err.code===2) text='Lokasi tidak dapat ditemukan. Pastikan GPS/Lokasi perangkat aktif, lalu coba lagi.';
+    else if(err&&err.code===3) text='Permintaan lokasi timeout. Pastikan GPS/Lokasi aktif, lalu coba lagi.';
+    else text='Lokasi tidak dapat diakses dari halaman ini. Jika file sedang dibuka langsung dari file://, buka melalui APK/WebView yang memberikan izin lokasi Android.';
+    gate(text);
+    const e=document.getElementById('sttGpsErr');if(e)e.textContent=err&&err.message?('Detail: '+err.message):'';
+  }
+
+  function request(){
+    if(!window.isSecureContext && location.protocol!=='file:'){
+      gate('Koneksi halaman tidak aman sehingga akses lokasi diblokir browser.');return;
+    }
+    if(!navigator.geolocation){gate('Perangkat/browser ini tidak menyediakan GPS. Pada APK, pastikan izin lokasi Android diaktifkan.');return;}
+    gate('Meminta izin lokasi perangkat…');
+    try{
+      navigator.geolocation.getCurrentPosition(granted,failed,{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+    }catch(e){failed({code:0,message:e&&e.message?e.message:'Geolocation tidak dapat dipanggil.'});}
+  }
+
+  window.STT_REQUEST_GPS=request;
+  const css=document.createElement('style');
+  css.textContent='.stt-gps-blocked>*:not(#sttGpsGate){pointer-events:none}.stt-gps-blocked #sttGpsGate{pointer-events:auto;position:fixed;inset:0;background:#0008;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px}.stt-gps-card{background:#fff;border-radius:18px;padding:24px;max-width:420px;text-align:center;box-shadow:0 20px 60px #0003}.stt-gps-card h2{margin:0 0 10px;color:#b42318}.stt-gps-card p{color:#475569;line-height:1.6}.stt-gps-card button{border:0;border-radius:12px;padding:13px 20px;background:#0b3d91;color:#fff;font-weight:700}.stt-gps-err{margin:8px 0 14px;color:#64748b;font-size:12px;word-break:break-word}';
+  document.head.appendChild(css);
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{
+    // Always request on first run. Do not trust a stored "granted" flag as proof of current permission.
+    request();
+  },250),{once:true});
+})();
+</script>
+<script>
+/* ADMIN-only Device Management panel; no existing controls replaced */
+(function(){
+ document.addEventListener('DOMContentLoaded',function(){
+  const admin=document.getElementById('adminSection'); if(!admin)return;
+  const box=document.createElement('div');box.id='sttDeviceManagement';box.className='card';box.style.marginTop='20px';box.style.display='none';
+  box.innerHTML='<h3 style="margin-top:0;color:var(--primary)"><i class="fas fa-mobile-screen-button"></i> DEVICE MANAGEMENT</h3><div class="small">Informasi rahasia perangkat — hanya tampil setelah ADMIN berhasil dibuka.</div><div id="sttDeviceId" style="font-weight:800;word-break:break-all;margin:8px 0 14px"></div><div id="sttGpsStatus" class="small">Memeriksa status GPS...</div><button id="sttRefreshGps" class="btn btn-primary" style="margin-top:12px"><i class="fas fa-location-crosshairs"></i> PERBARUI LOKASI</button>';
+  admin.appendChild(box);box.style.display=window.adminUnlocked?'block':'none';document.getElementById('sttDeviceId').textContent=window.STT_DEVICE_ID;
+  function show(){const g=window.STT_GPS||{};document.getElementById('sttGpsStatus').textContent=g.allowed&&g.lat!=null?`GPS AKTIF • ${g.lat.toFixed(6)}, ${g.lng.toFixed(6)} • ±${Math.round(g.accuracy||0)} m`:'GPS BELUM DIIZINKAN';}
+  document.getElementById('sttRefreshGps').onclick=()=>{window.STT_REQUEST_GPS();setTimeout(show,500)};setInterval(show,2000);show();
+ });
 })();
 </script>
 </body>
