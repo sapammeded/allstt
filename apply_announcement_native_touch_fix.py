@@ -3,9 +3,9 @@ from pathlib import Path
 p = Path('app/src/main/java/com/sapammeded/allstt/MainActivity.java')
 s = p.read_text(encoding='utf-8')
 
-# Native Android fallback for the announcement gate. This only watches ACTION_UP
-# and only dismisses the modal when the touched DOM element is #aamiinBtn.
-# Returning false preserves every existing WebView touch/click behavior.
+# Native Android fallback for the announcement gate. It only unlocks when the
+# touched DOM element is #aamiinBtn, so all other WebView touch behavior stays
+# unchanged. The JS routine removes the modal instead of merely hiding it.
 anchor = "        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> handleWebDownload(url, contentDisposition, mimeType));"
 call = anchor + "\n        installAnnouncementTouchBridge();"
 if 'installAnnouncementTouchBridge();' not in s:
@@ -19,7 +19,7 @@ method = r'''    private void installAnnouncementTouchBridge() {
             if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
                 final float x = event.getX();
                 final float y = event.getY();
-                String js = "(function(){try{var e=document.elementFromPoint("+x+","+y+");if(e&&e.closest&&e.closest('#aamiinBtn')){var m=document.getElementById('notificationModal');if(m){m.style.display='none';m.style.visibility='hidden';m.setAttribute('aria-hidden','true');try{localStorage.setItem('bangPriNotif','dilihat')}catch(_){} }}}catch(_){} })()";
+                String js = "(function(){try{var e=document.elementFromPoint("+x+","+y+");if(e&&e.closest&&e.closest('#aamiinBtn')){if(window.__ALLSTT_UNLOCK_APP){window.__ALLSTT_UNLOCK_APP();}else{var m=document.getElementById('notificationModal');if(m)m.remove();document.documentElement.style.overflow='';document.body.style.overflow='';}}}catch(_){} })()";
                 webView.evaluateJavascript(js, null);
             }
             return false;
