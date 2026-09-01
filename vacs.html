@@ -94,6 +94,66 @@ function exportReport(){
     toast('✅ Excel berhasil disiapkan untuk diunduh.');
   }catch(e){toast('❌ Export Excel gagal: '+(e.message||e))}
 }
+function bindEvents(){
+  // Navigation tabs
+  document.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.dataset.tab;
+      document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===btn));
+      document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===id));
+      if(id==='current') current();
+      if(id==='audit') audit();
+      if(id==='report' && !$('rDate').value){
+        const now=new Date();
+        $('rDate').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      }
+    });
+  });
+
+  // Gate search: works immediately while typing and with Enter.
+  let searchTimer;
+  $('search').addEventListener('input',()=>{
+    clearTimeout(searchTimer);
+    searchTimer=setTimeout(search,250);
+  });
+  $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(searchTimer);search();}});
+  $('inBtn').addEventListener('click',()=>gate('IN'));
+  $('outBtn').addEventListener('click',()=>gate('OUT'));
+
+  // Master
+  $('saveMasterBtn').addEventListener('click',saveM);
+  $('clearMasterBtn').addEventListener('click',clearM);
+  $('deleteVehicleBtn').addEventListener('click',async()=>{
+    const plate=$('delPlate').value.trim(),pin=$('adminPin').value;
+    if(!plate)return toast('Masukkan Nomor Kendaraan.');
+    if(!pin)return toast('Masukkan PIN ADMIN.');
+    const b=$('deleteVehicleBtn'); b.disabled=true;
+    try{
+      const r=await call({action:'deleteVehicle',plate,pin});
+      if(!r.ok)throw Error(r.message);
+      $('deleteResult').textContent='✓ '+(r.data?.message||'Kendaraan dihapus.');
+      $('deleteResult').className='result show ok';
+      $('delPlate').value=''; $('adminPin').value=''; dash();
+    }catch(e){
+      $('deleteResult').textContent='❌ '+e.message;
+      $('deleteResult').className='result show err';
+    }finally{b.disabled=false;}
+  });
+  $('importBtn').addEventListener('click',importM);
+  $('templateBtn').addEventListener('click',template);
+
+  // Current / audit / backup
+  $('refreshCurrent').addEventListener('click',current);
+  $('refreshAudit').addEventListener('click',audit);
+  $('auditSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();audit();}});
+  $('backupBtn').addEventListener('click',backup);
+
+  // Report
+  $('generateReport').addEventListener('click',report);
+  $('exportReport').addEventListener('click',exportReport);
+  $('printReport').addEventListener('click',printReport);
+}
+
 function printReport(){
   const t=$('reportTable').querySelector('table');
   if(!t)return toast('Generate report dulu.');
@@ -123,6 +183,6 @@ function printReport(){
   w.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;margin:18px}h2{margin:0 0 14px}.table{width:100%;border-collapse:collapse}.table th,.table td{border:1px solid #d8dee8;padding:7px;font-size:11px;text-align:left}.table th{background:#eef2f6}</style></head><body><h2>VACS — ACCESS REPORT</h2>'+t.outerHTML+'</body></html>');
   w.document.close();setTimeout(()=>w.print(),300);
 }
-bindEvents();
+try{bindEvents();}catch(e){console.error('VACS UI initialization failed:',e);toast('❌ UI gagal diinisialisasi: '+e.message)}
 (async()=>{if(await health())await dash()})();
 </script></body></html>
