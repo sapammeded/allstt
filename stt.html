@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FORM PATROLI PROFESIONAL SECURITY</title>
+<title>FORM PATROLI PROFESIONAL SECURITY — MASTER</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1605,8 +1605,9 @@ body:not(.admin-unlocked) #companySection{display:none !important;}
           <input type="file" id="nativeCameraInput" accept="image/*" capture="environment" style="display:none" />
           <input type="file" id="galleryCameraInput" accept="image/*" multiple style="display:none" />
           <div class="quality-notice" style="margin-top:14px">
-            <i class="fas fa-camera"></i> <strong>Ambil foto langsung dari kamera bawaan HP.</strong>
+            <i class="fas fa-camera"></i> <strong>Ambil foto langsung melalui kamera yang tersedia pada perangkat.</strong>
           </div>
+          <div class="small" style="margin-top:8px;color:var(--muted)"><i class="fas fa-circle-info"></i> Pada APK Android, sistem dapat menampilkan aplikasi kamera yang kompatibel dan sudah terpasang.</div>
         </div>
 
         <!-- Galeri hanya bisa dibuka setelah ADMIN dibuka -->
@@ -1852,7 +1853,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxjYqzTtQrZdCn1u-SG9GQHxCr_YSgGGSbaUbhAftVrjkwavyZoq2PnuMLQa1B6pxda/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxYhq7oe-0CG6d2t5Bbad4LyNTwekjaEPsDJe6IPWO45Z71FRkKWkqp9Em--2yfGZc/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -2710,6 +2711,8 @@ function setupSuperCleanup() {
     if(open) open.style.display=adminUnlocked?'block':'none';
     const uploadSec=document.getElementById('logoUploadSection');
     if(uploadSec) uploadSec.style.display=adminUnlocked?'block':'none';
+    const devicePanel=document.getElementById('sttDeviceManagement');
+    if(devicePanel) devicePanel.style.display=adminUnlocked?'block':'none';
     logoUnlocked=adminUnlocked;
     if(adminUnlocked){
       window.allsttGalleryUnlocked=true;
@@ -4556,23 +4559,6 @@ renderAreas();
   }
 
   function request(){
-    // Android WebView bridge hook: if the APK exposes a location permission helper,
-    // ask it first, then retry browser geolocation. Browser behavior remains unchanged.
-    try{
-      if(window.Android && typeof window.Android.requestLocationPermission==='function'){
-        try{ window.Android.requestLocationPermission(); }catch(_){ }
-      }
-    }catch(_){ }
-    // Check browser permission state when available. A denied Android/WebView permission
-    // is never treated as granted; the gate remains locked until permission is truly granted.
-    try{
-      if(navigator.permissions&&navigator.permissions.query){
-        navigator.permissions.query({name:'geolocation'}).then(p=>{
-          if(p.state==='granted'){ try{navigator.geolocation.getCurrentPosition(granted,failed,{enableHighAccuracy:true,timeout:20000,maximumAge:0})}catch(_){} }
-          if(p.state==='denied'){ gate('Izin lokasi Android ditolak. Izinkan Lokasi untuk aplikasi ini di Pengaturan Android, lalu tekan IZINKAN LOKASI kembali.'); }
-        }).catch(()=>{});
-      }
-    }catch(_){}
     if(!window.isSecureContext && location.protocol!=='file:'){
       gate('Koneksi halaman tidak aman sehingga akses lokasi diblokir browser.');return;
     }
@@ -4584,8 +4570,6 @@ renderAreas();
   }
 
   window.STT_REQUEST_GPS=request;
-  window.addEventListener('stt:android-location-permission',()=>setTimeout(request,300));
-  window.addEventListener('stt:android-location-denied',()=>gate('Izin lokasi Android belum diberikan. Izinkan Lokasi di Pengaturan Android lalu tekan IZINKAN LOKASI kembali.'));
   const css=document.createElement('style');
   css.textContent='.stt-gps-blocked>*:not(#sttGpsGate){pointer-events:none}.stt-gps-blocked #sttGpsGate{pointer-events:auto;position:fixed;inset:0;background:#0008;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px}.stt-gps-card{background:#fff;border-radius:18px;padding:24px;max-width:420px;text-align:center;box-shadow:0 20px 60px #0003}.stt-gps-card h2{margin:0 0 10px;color:#b42318}.stt-gps-card p{color:#475569;line-height:1.6}.stt-gps-card button{border:0;border-radius:12px;padding:13px 20px;background:#0b3d91;color:#fff;font-weight:700}.stt-gps-err{margin:8px 0 14px;color:#64748b;font-size:12px;word-break:break-word}';
   document.head.appendChild(css);
@@ -4600,12 +4584,120 @@ renderAreas();
 (function(){
  document.addEventListener('DOMContentLoaded',function(){
   const admin=document.getElementById('adminSection'); if(!admin)return;
-  const box=document.createElement('div');box.id='sttDeviceManagement';box.className='card';box.style.marginTop='20px';
-  box.innerHTML='<h3 style="margin-top:0;color:var(--primary)"><i class="fas fa-mobile-screen-button"></i> DEVICE MANAGEMENT</h3><div class="small">ID instalasi perangkat ini</div><div id="sttDeviceId" style="font-weight:800;word-break:break-all;margin:8px 0 14px"></div><div id="sttGpsStatus" class="small">Memeriksa status GPS...</div><button id="sttRefreshGps" class="btn btn-primary" style="margin-top:12px"><i class="fas fa-location-crosshairs"></i> PERBARUI LOKASI</button>';
-  admin.appendChild(box);document.getElementById('sttDeviceId').textContent=window.STT_DEVICE_ID;
+  const box=document.createElement('div');box.id='sttDeviceManagement';box.className='card';box.style.marginTop='20px';box.style.display='none';
+  box.innerHTML='<h3 style="margin-top:0;color:var(--primary)"><i class="fas fa-mobile-screen-button"></i> DEVICE MANAGEMENT</h3><div class="small">Informasi rahasia perangkat — hanya tampil setelah ADMIN berhasil dibuka.</div><div id="sttDeviceId" style="font-weight:800;word-break:break-all;margin:8px 0 14px"></div><div id="sttGpsStatus" class="small">Memeriksa status GPS...</div><button id="sttRefreshGps" class="btn btn-primary" style="margin-top:12px"><i class="fas fa-location-crosshairs"></i> PERBARUI LOKASI</button>';
+  admin.appendChild(box);box.style.display=window.adminUnlocked?'block':'none';document.getElementById('sttDeviceId').textContent=window.STT_DEVICE_ID;
   function show(){const g=window.STT_GPS||{};document.getElementById('sttGpsStatus').textContent=g.allowed&&g.lat!=null?`GPS AKTIF • ${g.lat.toFixed(6)}, ${g.lng.toFixed(6)} • ±${Math.round(g.accuracy||0)} m`:'GPS BELUM DIIZINKAN';}
   document.getElementById('sttRefreshGps').onclick=()=>{window.STT_REQUEST_GPS();setTimeout(show,500)};setInterval(show,2000);show();
  });
+})();
+</script>
+<!-- STT DEVICE ACCESS CONTROL v1: whitelist/blacklist, ADMIN-only -->
+<script id="STT_DEVICE_ACCESS_CONTROL_V1">
+(function(){
+  'use strict';
+  const STATUS_KEY='STT_DEVICE_ACCESS_STATUS_V1';
+  const DEFAULT_STATUS='pending'; // New installations require ADMIN approval.
+  const deviceId=window.STT_DEVICE_ID || (localStorage.getItem('STT_INSTALLATION_ID_V1')||'');
+  const getStatus=()=>{try{return localStorage.getItem(STATUS_KEY)||DEFAULT_STATUS}catch(e){return DEFAULT_STATUS}};
+  const setStatus=v=>{try{localStorage.setItem(STATUS_KEY,v)}catch(e){}};
+  const isAllowed=()=>getStatus()==='allowed';
+  const isBlocked=()=>getStatus()==='blocked';
+
+  function css(){
+    if(document.getElementById('sttDeviceAccessCss'))return;
+    const st=document.createElement('style');st.id='sttDeviceAccessCss';
+    st.textContent=`
+      body.stt-device-locked>*:not(#sttDeviceAccessGate){pointer-events:none!important;user-select:none!important}
+      #sttDeviceAccessGate{position:fixed;inset:0;z-index:2147483646;background:rgba(3,12,30,.96);display:flex;align-items:center;justify-content:center;padding:22px;box-sizing:border-box}
+      #sttDeviceAccessGate .dac-card{width:min(440px,100%);background:#fff;border-radius:22px;padding:26px;box-shadow:0 24px 80px rgba(0,0,0,.4);font-family:inherit}
+      #sttDeviceAccessGate h2{margin:0 0 10px;color:#b42318;font-size:23px}
+      #sttDeviceAccessGate p{color:#475569;line-height:1.55;margin:8px 0}
+      #sttDeviceAccessGate .dac-id{background:#f1f5f9;border-radius:12px;padding:12px;font-weight:800;word-break:break-all;margin:14px 0}
+      #sttDeviceAccessGate input{width:100%;box-sizing:border-box;padding:13px;border:2px solid #dbe2ea;border-radius:12px;font-size:16px;margin:8px 0}
+      #sttDeviceAccessGate button{width:100%;border:0;border-radius:12px;padding:13px;margin-top:8px;font-weight:800;font-size:15px;background:#0b3d91;color:#fff}
+      #sttDeviceAccessGate button.secondary{background:#e8eef7;color:#172033}
+      #sttDeviceAccessGate .dac-msg{font-size:13px;color:#64748b;min-height:20px;margin-top:8px}
+    `;
+    document.head.appendChild(st);
+  }
+  function gate(){
+    css(); document.body.classList.add('stt-device-locked');
+    let el=document.getElementById('sttDeviceAccessGate');
+    if(!el){
+      el=document.createElement('div');el.id='sttDeviceAccessGate';
+      el.innerHTML=`<div class="dac-card">
+        <h2 id="dacTitle">🔒 PERANGKAT BELUM DIIZINKAN</h2>
+        <p id="dacDesc">Perangkat ini belum mendapat izin penggunaan aplikasi. Akses hanya dapat diberikan oleh ADMIN.</p>
+        <div class="dac-id">Installation ID<br><span id="dacId"></span></div>
+        <input id="dacAdminPw" type="password" autocomplete="current-password" placeholder="Kunci ADMIN untuk aktivasi">
+        <button id="dacApprove">IZINKAN PERANGKAT</button>
+        <button id="dacRetry" class="secondary">CEK ULANG STATUS</button>
+        <div id="dacMsg" class="dac-msg"></div>
+      </div>`;
+      document.body.appendChild(el);
+      el.querySelector('#dacId').textContent=deviceId||'UNKNOWN';
+      el.querySelector('#dacApprove').onclick=()=>{
+        const pw=el.querySelector('#dacAdminPw').value||'';
+        try{
+          if(typeof getAdminPassword==='function' && pw===getAdminPassword()){
+            setStatus('allowed');
+            document.body.classList.remove('stt-device-locked');el.remove();
+            if(typeof window.setAdminUi==='function') window.setAdminUi(true);
+            alert('✅ Perangkat ini DIIZINKAN.');
+          }else{
+            el.querySelector('#dacMsg').textContent='❌ Kunci ADMIN salah.';
+          }
+        }catch(e){el.querySelector('#dacMsg').textContent='❌ Aktivasi gagal: '+(e.message||e)}
+      };
+      el.querySelector('#dacRetry').onclick=()=>{ if(isAllowed()){unlock()} else updateText(); };
+    }
+    updateText();
+  }
+  function updateText(){
+    const t=document.getElementById('dacTitle'),d=document.getElementById('dacDesc'),pw=document.getElementById('dacAdminPw'),b=document.getElementById('dacApprove');
+    if(!t)return;
+    if(isBlocked()){
+      t.textContent='🚫 PERANGKAT DIBLOKIR';d.textContent='Perangkat ini telah diblokir oleh ADMIN. Aplikasi tidak dapat digunakan.';b.textContent='BUKA KEMBALI DENGAN ADMIN';
+    }else if(isAllowed()){
+      unlock();
+    }else{
+      t.textContent='🔒 PERANGKAT BELUM DIIZINKAN';d.textContent='Perangkat ini belum mendapat izin penggunaan aplikasi. Akses hanya dapat diberikan oleh ADMIN.';b.textContent='IZINKAN PERANGKAT';
+    }
+    if(pw)pw.value='';
+  }
+  function unlock(){document.body.classList.remove('stt-device-locked');const e=document.getElementById('sttDeviceAccessGate');if(e)e.remove()}
+
+  function installAdminControls(){
+    const admin=document.getElementById('adminSection'); if(!admin)return;
+    let box=document.getElementById('sttDeviceAccessManager');
+    if(!box){
+      box=document.createElement('div');box.id='sttDeviceAccessManager';box.className='card';box.style.cssText='margin-top:16px;border-left:5px solid #b42318;display:none';
+      box.innerHTML=`<h3 style="margin:0 0 8px;color:var(--primary)">🔐 DEVICE ACCESS CONTROL</h3>
+        <div class="small">Kontrol akses rahasia ADMIN. Device baru default-nya PENDING.</div>
+        <div style="margin:10px 0"><b>Installation ID:</b><div id="dacAdminId" style="font-weight:800;word-break:break-all;margin-top:5px"></div></div>
+        <div id="dacAdminStatus" style="font-weight:800;margin:8px 0"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="dacAllowBtn" type="button" class="btn btn-primary">✅ IZINKAN DEVICE</button>
+          <button id="dacBlockBtn" type="button" class="btn btn-danger">🚫 BLOKIR DEVICE</button>
+        </div>`;
+      admin.appendChild(box);
+    }
+    box.style.display=window.adminUnlocked?'block':'none';
+    const idEl=box.querySelector('#dacAdminId');if(idEl)idEl.textContent=deviceId||'UNKNOWN';
+    const statusEl=box.querySelector('#dacAdminStatus');if(statusEl)statusEl.textContent='STATUS: '+getStatus().toUpperCase();
+    box.querySelector('#dacAllowBtn').onclick=()=>{setStatus('allowed');statusEl.textContent='STATUS: ALLOWED';unlock();alert('✅ Device diizinkan.');};
+    box.querySelector('#dacBlockBtn').onclick=()=>{if(!confirm('Blokir device ini? Device akan terkunci saat aplikasi dijalankan kembali.'))return;setStatus('blocked');statusEl.textContent='STATUS: BLOCKED';gate();alert('🚫 Device diblokir.');};
+  }
+  document.addEventListener('DOMContentLoaded',()=>{
+    css();
+    // Existing installations remain usable once; new installations must be approved by ADMIN.
+    // The owner can approve this installation from the gate using the existing ADMIN key.
+    if(!isAllowed()) setTimeout(gate,350);
+    setTimeout(installAdminControls,500);
+    setInterval(installAdminControls,2000);
+  });
+  window.STT_DEVICE_ACCESS={getStatus,setStatus,allow:()=>{setStatus('allowed');unlock()},block:()=>{setStatus('blocked');gate()},getId:()=>deviceId};
 })();
 </script>
 </body>
