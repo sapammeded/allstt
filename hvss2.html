@@ -447,7 +447,10 @@ function hvssBuildKeyLogPdf(){
   doc.setFillColor(...NAVY);doc.rect(0,0,W,25,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("HVSS SECURITY CONTROL CENTER",12,10);doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text("KEY LOAN LOG",12,17);doc.text(titleDate,W-12,17,{align:"right"});
   doc.setTextColor(...NAVY);doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("CENTRAL KEY LOAN HISTORY",12,33);
   doc.autoTable({startY:39,head:[["NO","DATE OUT","TIME OUT","NAMA PEMINJAM","DIVISI","SECURITY OUT","NAMA KUNCI","KEY NUMBER","DATE IN","TIME IN","NAMA YANG MENGEMBALIKAN","DIVISI IN","SECURITY IN","REMARK OUT","KETERANGAN","STATUS"]],body:rows.map((x,i)=>[i+1,dateLabel(x.outDate)||"—",x.outTime||"—",x.borrower||"—",x.division||"—",x.security||"—",x.keyName||"—",String(x.keyNumber||"—"),dateLabel(x.inDate)||"—",x.inTime||"—",x.returner||"—",x.inDivision||"—",x.inSecurity||"—",x.remark||"—",x.note||"—",x.inDate?"RETURNED":"KEY OUT"]),theme:"grid",styles:{font:"helvetica",fontSize:5.5,cellPadding:1.35,textColor:[35,45,58],lineColor:LINE,lineWidth:.25,overflow:"linebreak"},headStyles:{fillColor:BLUE,textColor:255,fontStyle:"bold",fontSize:5.3},alternateRowStyles:{fillColor:[250,251,253]},margin:{left:8,right:8,bottom:17},didDrawPage:footer});
-  doc.save("HVSS_Key_Loan_Log_"+(d||"ALL_HISTORY")+".pdf");
+  const filename="HVSS_Key_Loan_Log_"+(d||"ALL_HISTORY")+".pdf";
+  if(window.Android&&typeof window.Android.saveFileBase64==="function"){
+    const dataUri=doc.output("datauristring"); window.Android.saveFileBase64(filename,dataUri.split(",")[1],"application/pdf");
+  }else{doc.save(filename);}
 }
 
 function reportData(){let d=$("reportDate").value||today(),v=db.visitors.filter(x=>dateKey(x.date)===d).sort((a,b)=>(a.timeIn||"99:99").localeCompare(b.timeIn||"99:99")),k=db.keys.filter(x=>dateKey(x.outDate)===d||dateKey(x.inDate)===d).sort((a,b)=>(a.outTime||"99:99").localeCompare(b.outTime||"99:99"));return {d,v,k}}
@@ -505,11 +508,21 @@ function makeVisitorRows(date){let a=db.visitors.filter(x=>!date||dateKey(x.date
 function makeKeyRows(date){let a=db.keys.filter(x=>!date||dateKey(x.outDate)===date||dateKey(x.inDate)===date).sort((x,y)=>(dateKey(x.outDate)+x.outTime+x.borrower).localeCompare(dateKey(y.outDate)+y.outTime+y.borrower));return [window.HVSS_KEY_HEADERS].concat(a.map((x,i)=>[i+1,dateLabel(x.outDate),x.outTime||"",x.borrower||"",x.division||"",x.security||"",x.keyName||"",String(x.keyNumber||""),dateLabel(x.inDate),x.inTime||"",x.returner||"",x.inDivision||"",x.inSecurity||"",x.remark||"",x.note||"",x.inDate?"RETURNED":"KEY OUT"]))}
 function exportWorkbook(sheets,name){sheets=sheets.map(sh=>({name:sh.name,rows:sh.rows.map(r=>r.map(cleanReportValue))}));let blob=xlsxBlob(sheets),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
 function exportXlsx(rows,name){exportWorkbook([{name:"Report",rows}],name)}
-async function exportFromCentral(sheets,name){try{if(window.HVSS_CENTRAL_PULL)await window.HVSS_CENTRAL_PULL();exportWorkbook(sheets(),name)}catch(e){alert("Export gagal mengambil CENTRAL: "+(e.message||e))}}
-$("vExcel").onclick=()=>exportFromCentral(()=>[{name:"Visitor Registration",rows:makeVisitorRows($("vFilterDate").value||"")}],"HVSS_Visitor_Report.xlsx");
-$("kExcel").onclick=()=>exportFromCentral(()=>[{name:"Key Loan",rows:makeKeyRows("")}],"HVSS_Key_Control_Report.xlsx");
-$("reportExcel").onclick=()=>{let d=$("reportDate").value||today();exportFromCentral(()=>[{name:"Visitor Registration",rows:makeVisitorRows(d)},{name:"Key Loan",rows:makeKeyRows(d)}],"HVSS_Daily_Report_"+d+".xlsx")};
-$("allExcel").onclick=()=>exportFromCentral(()=>[{name:"Visitor Registration",rows:makeVisitorRows("")},{name:"Key Loan",rows:makeKeyRows("")}],"HVSS_All_Security_Report.xlsx");
+async function exportFromCentral(sheets,name){try{const central=window.HVSS_CENTRAL_PULL?await window.HVSS_CENTRAL_PULL():null;exportWorkbook(sheets(central),name)}catch(e){alert("Export gagal mengambil CENTRAL: "+(e.message||e))}}
+function centralKeyRows(central,date){const a=(central&&Array.isArray(central.keys)?central.keys:db.keys).filter(x=>!date||dateKey(x.outDate)===date||dateKey(x.inDate)===date).sort((x,y)=>(dateKey(x.outDate)+x.outTime+x.borrower).localeCompare(dateKey(y.outDate)+y.outTime+y.borrower));return [window.HVSS_KEY_HEADERS].concat(a.map((x,i)=>[i+1,dateLabel(x.outDate),x.outTime||"",x.borrower||"",x.division||"",x.security||"",x.keyName||"",String(x.keyNumber||""),dateLabel(x.inDate),x.inTime||"",x.returner||"",x.inDivision||"",x.inSecurity||"",x.remark||"",x.note||"",x.inDate?"RETURNED":"KEY OUT"]))}
+function centralVisitorRows(central,date){const a=(central&&Array.isArray(central.visitors)?central.visitors:db.visitors).filter(x=>!date||dateKey(x.date)===date).sort((x,y)=>(dateKey(x.date)+x.timeIn+x.name).localeCompare(dateKey(y.date)+y.timeIn+y.name));return [window.HVSS_VISITOR_HEADERS].concat(a.map((x,i)=>[i+1,dateLabel(x.date),x.timeIn||"",x.timeOut||"",x.name||"",x.company||"",String(x.idcard||""),x.purpose||"",x.area||"",x.remark||"",x.timeOut?"OUT":"INSIDE"]))}
+$("vExcel").onclick=()=>exportFromCentral(c=>[{name:"Visitor Registration",rows:centralVisitorRows(c,$("vFilterDate").value||"")}],"HVSS_Visitor_Report.xlsx");
+$("kExcel").onclick=()=>exportFromCentral(c=>[{name:"Key Loan",rows:centralKeyRows(c,"")}],"HVSS_Key_Control_Report.xlsx");
+$("reportExcel").onclick=()=>{let d=$("reportDate").value||today();exportFromCentral(c=>[{name:"Visitor Registration",rows:centralVisitorRows(c,d)},{name:"Key Loan",rows:centralKeyRows(c,d)}],"HVSS_Daily_Report_"+d+".xlsx")};
+$("allExcel").onclick=()=>exportFromCentral(c=>[{name:"Visitor Registration",rows:centralVisitorRows(c,"")},{name:"Key Loan",rows:centralKeyRows(c,"")}],"HVSS_All_Security_Report.xlsx");
+
+function hvssSavePdf(doc,filename){
+  if(window.Android&&typeof window.Android.saveFileBase64==="function"){
+    const u=doc.output("datauristring");
+    try{window.Android.saveFileBase64(filename,u.split(",")[1],"application/pdf");return;}catch(e){}
+  }
+  doc.save(filename);
+}
 
 function hvssBuildPdf(mode){
   if(!window.jspdf || !window.jspdf.jsPDF){
@@ -580,7 +593,7 @@ function hvssBuildPdf(mode){
       margin:{left:12,right:12,bottom:17},
       didDrawPage:footer
     });
-    doc.save("HVSS_Visitor_Report_"+r.d+".pdf");
+    hvssSavePdf(doc,"HVSS_Visitor_Report_"+r.d+".pdf");
     return;
   }
 
@@ -602,7 +615,7 @@ function hvssBuildPdf(mode){
       margin:{left:12,right:12,bottom:17},
       didDrawPage:footer
     });
-    doc.save("HVSS_Key_Control_Report_"+r.d+".pdf");
+    hvssSavePdf(doc,"HVSS_Key_Control_Report_"+r.d+".pdf");
     return;
   }
 
@@ -627,7 +640,7 @@ function hvssBuildPdf(mode){
       headStyles:{fillColor:BLUE,textColor:255,fontStyle:"bold",fontSize:7},alternateRowStyles:{fillColor:[250,251,253]},
       margin:{left:12,right:12,bottom:17},didDrawPage:footer
     });
-    doc.save("HVSS_Daily_Report_"+r.d+".pdf");
+    hvssSavePdf(doc,"HVSS_Daily_Report_"+r.d+".pdf");
     return;
   }
 
@@ -652,7 +665,7 @@ function hvssBuildPdf(mode){
     margin:{left:12,right:12,bottom:17},
     didDrawPage:footer
   });
-  doc.save("HVSS_Unified_History.pdf");
+  hvssSavePdf(doc,"HVSS_Unified_History.pdf");
 }
 
 function printReport(page){

@@ -63,14 +63,21 @@ function reportDateParts(){const v=$('rDate').value;if(!v)throw Error('Pilih tan
 function hariTanggal(v){const s=String(v??'').trim();let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(!m)return s;const d=Number(m[1]),mo=Number(m[2]),y=Number(m[3]);const dt=new Date(Date.UTC(y,mo-1,d));const hari=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][dt.getUTCDay()];return `${hari},${String(d).padStart(2,'0')}/${String(mo).padStart(2,'0')}/${y}`}
 function isoToLogDate(iso){const [y,m,d]=iso.split('-');return `${d}/${m}/${y}`}
 async function report(){try{const p=reportDateParts();const r=await call({action:'report',year:p.year,month:p.month},30000);const selectedLogDate=isoToLogDate(p.iso);const rows=(r.data.rows||[]).filter(x=>String(x.date||'').trim()===selectedLogDate);lastReport={...r.data,rows,reportDate:p.iso,reportLogDate:selectedLogDate};const a=rows;$('reportTable').className='tablewrap';$('reportTable').innerHTML=`<table class="table"><tr><th>Nama</th><th>Nomor Kendaraan</th><th>Bagian/Divisi</th><th>Jenis</th><th>Model</th><th>Warna</th><th>IN</th><th>OUT</th><th>Hari/Tanggal</th><th>Keterangan</th></tr>${a.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.plate)}</td><td>${esc(x.division)}</td><td>${esc(x.type)}</td><td>${esc(x.model)}</td><td>${esc(x.color)}</td><td>${esc(x.inTime)}</td><td>${esc(x.outTime)}</td><td>${esc(hariTanggal(x.date))}</td><td>${esc(x.notes)}</td></tr>`).join('')||'<tr><td colspan="10">Tidak ada data pada tanggal tersebut.</td></tr>'}</table>`}catch(e){$('reportTable').className='empty';$('reportTable').textContent='❌ '+e.message}}
-function downloadBlob(blob,name){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
+function downloadBlob(blob,name,mime){
+  mime=mime||blob.type||'application/octet-stream';
+  const native=window.Android;
+  if(native&&typeof native.saveFileBase64==='function'){
+    const fr=new FileReader();
+    fr.onload=()=>{try{native.saveFileBase64(name,String(fr.result).split(',')[1],mime);toast('✅ File dikirim ke penyimpanan perangkat.')}catch(e){toast('❌ Penyimpanan Android gagal: '+(e.message||e))}};
+    fr.readAsDataURL(blob); return;
+  }
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=name;a.rel='noopener';a.style.display='none';
   document.body.appendChild(a);
-  try{a.click()}catch(_){}
-  setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1500);
+  try{a.click();}catch(e){toast('❌ Browser/WebView memblokir download: '+(e.message||e));}
+  setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},3000);
 }
+
 function exportReport(){
   if(!lastReport)return toast('Generate report dulu.');
   try{
@@ -83,7 +90,7 @@ function exportReport(){
     const w=XLSX.utils.book_new(),s=XLSX.utils.aoa_to_sheet(a);
     XLSX.utils.book_append_sheet(w,s,'ACCESS_LOG');
     const out=XLSX.write(w,{bookType:'xlsx',type:'array'});
-    downloadBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'VACS_ACCESS_LOG.xlsx');
+    downloadBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'VACS_ACCESS_LOG.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     toast('✅ Excel berhasil disiapkan untuk diunduh.');
   }catch(e){toast('❌ Export Excel gagal: '+(e.message||e))}
 }
@@ -104,7 +111,9 @@ function printReport(){
         let y=28;doc.setFontSize(7);doc.text(head.join(' | '),14,y);y+=5;
         rows.forEach(r=>{doc.text(r.join(' | '),14,y,{maxWidth:270});y+=4;if(y>195){doc.addPage();y=15}});
       }
-      doc.save('VACS_ACCESS_REPORT_'+(lastReport?.reportDate||'').replace(/-/g,'')+'.pdf');
+      const pdfName='VACS_ACCESS_REPORT_'+(lastReport?.reportDate||'').replace(/-/g,'')+'.pdf';
+      const pdfBlob=doc.output('blob');
+      downloadBlob(pdfBlob,pdfName,'application/pdf');
       toast('✅ PDF berhasil disiapkan untuk diunduh.');
       return;
     }

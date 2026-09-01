@@ -4563,6 +4563,16 @@ renderAreas();
         try{ window.Android.requestLocationPermission(); }catch(_){ }
       }
     }catch(_){ }
+    // Check browser permission state when available. A denied Android/WebView permission
+    // is never treated as granted; the gate remains locked until permission is truly granted.
+    try{
+      if(navigator.permissions&&navigator.permissions.query){
+        navigator.permissions.query({name:'geolocation'}).then(p=>{
+          if(p.state==='granted'){ try{navigator.geolocation.getCurrentPosition(granted,failed,{enableHighAccuracy:true,timeout:20000,maximumAge:0})}catch(_){} }
+          if(p.state==='denied'){ gate('Izin lokasi Android ditolak. Izinkan Lokasi untuk aplikasi ini di Pengaturan Android, lalu tekan IZINKAN LOKASI kembali.'); }
+        }).catch(()=>{});
+      }
+    }catch(_){}
     if(!window.isSecureContext && location.protocol!=='file:'){
       gate('Koneksi halaman tidak aman sehingga akses lokasi diblokir browser.');return;
     }
@@ -4575,6 +4585,7 @@ renderAreas();
 
   window.STT_REQUEST_GPS=request;
   window.addEventListener('stt:android-location-permission',()=>setTimeout(request,300));
+  window.addEventListener('stt:android-location-denied',()=>gate('Izin lokasi Android belum diberikan. Izinkan Lokasi di Pengaturan Android lalu tekan IZINKAN LOKASI kembali.'));
   const css=document.createElement('style');
   css.textContent='.stt-gps-blocked>*:not(#sttGpsGate){pointer-events:none}.stt-gps-blocked #sttGpsGate{pointer-events:auto;position:fixed;inset:0;background:#0008;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px}.stt-gps-card{background:#fff;border-radius:18px;padding:24px;max-width:420px;text-align:center;box-shadow:0 20px 60px #0003}.stt-gps-card h2{margin:0 0 10px;color:#b42318}.stt-gps-card p{color:#475569;line-height:1.6}.stt-gps-card button{border:0;border-radius:12px;padding:13px 20px;background:#0b3d91;color:#fff;font-weight:700}.stt-gps-err{margin:8px 0 14px;color:#64748b;font-size:12px;word-break:break-word}';
   document.head.appendChild(css);
