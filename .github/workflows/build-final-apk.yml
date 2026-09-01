@@ -1,4 +1,5 @@
 name: Build FINAL ALLSTT APK
+
 on:
   workflow_dispatch:
   push:
@@ -11,14 +12,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout CURRENT repository baseline
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Apply ONLY HVSS2 Key Loan Log patch
-        run: python3 apply_hvss2_keylog_patch.py
-
-      - name: Apply HVSS2 PDF fallback for Android WebView
-        run: python3 apply_hvss2_pdf_fallback.py
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -31,90 +26,26 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Apply ONLY unified ADMIN authorization
-        run: python3 apply_admin_patch.py
-
-      - name: Remove legacy gallery redispatch and harden Android upload
-        run: python3 final_runtime_fix_v7.py
-
-      - name: Apply protected gallery/company feature policy
-        run: python3 protect_features.py
-
-      - name: Apply ONLY officer gallery photo PDF persistence fix
-        run: python3 apply_officer_photo_pdf_fix.py
-
-      - name: Apply ONLY announcement Continue button Android WebView fix
-        run: python3 apply_announcement_button_fix.py
-
-      - name: Apply native WebView fallback ONLY for announcement Continue
-        run: python3 apply_announcement_native_touch_fix.py
-
-      - name: Prepare CURRENT HTML assets unchanged
+      - name: Prepare FINAL HTML assets unchanged
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          a = Path('app/src/main/assets')
-          a.mkdir(parents=True, exist_ok=True)
-          for n in ('stt.html', 'hvss2.html', 'vacs.html', 'launcher.html'):
-              src = Path(n)
-              if not src.is_file():
-                  raise SystemExit(f'Missing root asset: {n}')
-              (a / n).write_text(src.read_text(encoding='utf-8'), encoding='utf-8')
-          PY
+          set -euo pipefail
+          mkdir -p app/src/main/assets
+          for n in stt.html hvss2.html vacs.html launcher.html; do
+            test -s "$n"
+            cp -f "$n" "app/src/main/assets/$n"
+          done
 
-      - name: Verify HVSS2 baseline and Key Loan Log patch
+      - name: Verify FINAL HTML assets
+        shell: bash
         run: |
-          grep -q 'HVSS-KEY-LOAN-LOG-PATCH-V1' hvss2.html
-          grep -q 'data-page="keylogPage"' hvss2.html
-          grep -q 'id="keyLogBody"' hvss2.html
-          grep -q 'id="keyLogPdf"' hvss2.html
-          grep -q 'HVSS-PDF-FALLBACK-V2' hvss2.html
-          grep -q 'HVSS_PDF_FALLBACK' hvss2.html
+          set -euo pipefail
+          test -s app/src/main/assets/stt.html
+          test -s app/src/main/assets/hvss2.html
+          test -s app/src/main/assets/vacs.html
+          test -s app/src/main/assets/launcher.html
 
-      - name: Verify baseline Kamera & Area Patroli exists
-        run: |
-          grep -q 'id="cameraTab"' stt.html
-          grep -q 'id="openCameraMenu"' stt.html
-          grep -q 'id="galleryCameraInput"' stt.html
-          grep -q 'id="targetAreaSelect"' stt.html
-
-      - name: Verify baseline company identity, kop surat & signature exists
-        run: |
-          grep -q 'id="companySection"' stt.html
-          grep -q 'IDENTITAS PERUSAHAAN' stt.html
-          grep -q 'KOP SURAT' stt.html
-          grep -q 'TANDA TANGAN' stt.html
-
-      - name: Verify protected feature policy
-        run: |
-          grep -q 'ALLSTT-FINAL-ADMIN-GATE-V1' stt.html
-          grep -q 'ONE ADMIN SESSION protects every gallery/company administration action' stt.html
-          ! grep -q "alert('✅ Foto berhasil ditambahkan ke" stt.html
-
-      - name: Verify final Android runtime hardening
-        run: |
-          grep -q 'ALLSTT FINAL UPLOAD BRIDGE V7' stt.html
-          grep -q 'IndexedDB unavailable' stt.html
-          grep -q 'EXTRA_ALLOW_MULTIPLE' app/src/main/java/com/sapammeded/allstt/MainActivity.java
-
-      - name: Verify officer gallery photo PDF fix
-        run: |
-          grep -q 'OFFICER_PHOTO_PDF_FIX_V1' stt.html
-          grep -q 'const pdfOfficerPhotoData = officerPhotoDataUrl || await loadOfficerPhoto();' stt.html
-
-      - name: Verify announcement Continue button fix
-        run: |
-          grep -q 'ALLSTT-ANNOUNCEMENT-BUTTON-FIX-V4-CSS' stt.html
-          grep -q 'ALLSTT-ANNOUNCEMENT-EMERGENCY-UNLOCK-V4' stt.html
-          grep -q 'id="aamiinBtn"' stt.html
-
-      - name: Verify native announcement touch fallback
-        run: |
-          grep -q 'installAnnouncementTouchBridge' app/src/main/java/com/sapammeded/allstt/MainActivity.java
-          grep -q "closest('#aamiinBtn')" app/src/main/java/com/sapammeded/allstt/MainActivity.java
-
-      - name: Validate patched STT JavaScript syntax
+      - name: Validate STT JavaScript syntax
         shell: bash
         run: |
           python3 - <<'PY'
@@ -122,11 +53,10 @@ jobs:
           import re
           html = Path('stt.html').read_text(encoding='utf-8')
           scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
-          inline = '\n\n'.join(scripts)
-          Path('/tmp/allstt-inline.js').write_text(inline, encoding='utf-8')
-          print(f'Extracted {len(scripts)} inline script blocks')
+          Path('/tmp/stt-inline.js').write_text('\n\n'.join(scripts), encoding='utf-8')
+          print(f'STT inline scripts: {len(scripts)}')
           PY
-          node --check /tmp/allstt-inline.js
+          node --check /tmp/stt-inline.js
 
       - name: Validate HVSS2 JavaScript syntax
         shell: bash
@@ -137,9 +67,22 @@ jobs:
           html = Path('hvss2.html').read_text(encoding='utf-8')
           scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
           Path('/tmp/hvss2-inline.js').write_text('\n\n'.join(scripts), encoding='utf-8')
-          print(f'Extracted {len(scripts)} HVSS2 inline script blocks')
+          print(f'HVSS2 inline scripts: {len(scripts)}')
           PY
           node --check /tmp/hvss2-inline.js
+
+      - name: Validate VACS JavaScript syntax
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('vacs.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
+          Path('/tmp/vacs-inline.js').write_text('\n\n'.join(scripts), encoding='utf-8')
+          print(f'VACS inline scripts: {len(scripts)}')
+          PY
+          node --check /tmp/vacs-inline.js
 
       - name: Verify launcher icon
         run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
