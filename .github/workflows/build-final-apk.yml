@@ -100,9 +100,9 @@ jobs:
 
       - name: Verify announcement Continue button fix
         run: |
-          grep -q 'ALLSTT ANNOUNCEMENT BUTTON FIX V3' stt.html
-          grep -q 'onclick="try{var m=document.getElementById('\''notificationModal'\'')' stt.html
-          grep -q 'ALLSTT-ANNOUNCEMENT-BUTTON-FIX-V3-CSS' stt.html
+          grep -q 'ALLSTT-ANNOUNCEMENT-BUTTON-FIX-V4-CSS' stt.html
+          grep -q 'ALLSTT-ANNOUNCEMENT-EMERGENCY-UNLOCK-V4' stt.html
+          grep -q 'id="aamiinBtn"' stt.html
 
       - name: Verify native announcement touch fallback
         run: |
