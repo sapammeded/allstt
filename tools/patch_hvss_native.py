@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 p = Path('hvss2.html')
 s = p.read_text(encoding='utf-8')
@@ -33,8 +34,21 @@ new_ui = '''    if(typeof window.HVSS_ADD_BULK_KEY_ROW==='function'){
     if(typeof window.HVSS_RENDER_KEY_LOG==='function')window.HVSS_RENDER_KEY_LOG();'''
 if old_ui in s:
     s = s.replace(old_ui, new_ui, 1)
-elif new_ui not in s:
-    raise SystemExit('CENTRAL UI refresh anchor not found')
+else:
+    # Some uploaded baselines differ only in whitespace/indentation. Apply the
+    # same fix by replacing the complete applyCentral refresh tail, so a
+    # build can never leave an out-of-scope renderAll() call behind.
+    apply_start = s.find('  function applyCentral(data){')
+    pull_start = s.find('  function pullCentral(){', apply_start)
+    if apply_start < 0 or pull_start < 0:
+        raise SystemExit('Could not locate applyCentral/pullCentral boundaries')
+    block = s[apply_start:pull_start]
+    if 'renderAll();' not in block:
+        raise SystemExit('CENTRAL UI refresh renderAll anchor not found')
+    block = re.sub(r'(?m)^\s*if\(typeof renderAll===\'function\'\).*?addBulkKeyRow\(\);\s*\n', '', block, count=1)
+    block = re.sub(r'(?m)^\s*renderAll\(\);\s*\n', '    if(typeof window.HVSS_RENDER_ALL===\'function\')window.HVSS_RENDER_ALL();\n', block, count=1)
+    block = re.sub(r'(?m)^\s*if\(typeof renderKeyLog===\'function\)renderKeyLog\(\);\s*\n', '    if(typeof window.HVSS_RENDER_KEY_LOG===\'function\')window.HVSS_RENDER_KEY_LOG();\n', block, count=1)
+    s = s[:apply_start] + block + s[pull_start:]
 
 native_bridge = '''  function nativeCentralCall(type, payload, timeoutMs=30000){
     if(!window.AndroidCentral) return null;
@@ -147,6 +161,18 @@ b = s.find('  window.addEventListener("load",()=>setTimeout(async()=>', a)
 if a < 0 or b < 0:
     raise SystemExit('Could not locate resetCentral/load boundary')
 s = s[:a] + native_reset + s[b:]
+
+# Final invariant: CENTRAL code is outside the main UI IIFE, therefore it must
+# never call the local renderAll/renderKeyLog identifiers directly.
+apply_start = s.find('  function applyCentral(data){')
+pull_start = s.find('  function pullCentral(){', apply_start)
+if apply_start < 0 or pull_start < 0:
+    raise SystemExit('Final CENTRAL scope verification failed')
+central_block = s[apply_start:pull_start]
+if re.search(r'(?<![.\w])renderAll\s*\(', central_block):
+    raise SystemExit('Unscoped renderAll() remains in CENTRAL apply block')
+if re.search(r'(?<![.\w])renderKeyLog\s*\(', central_block):
+    raise SystemExit('Unscoped renderKeyLog() remains in CENTRAL apply block')
 
 for marker in (
     'function nativeCentralCall(',
