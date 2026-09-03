@@ -26,6 +26,12 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Apply HVSS native CENTRAL transport patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/patch_hvss_native.py
+
       - name: Prepare HTML assets from current repository
         shell: bash
         run: |
