@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b1630">
-<title>HVSS Security Control Center v6.8</title>
+<title>HVSS Security Control Center v5 PRO</title>
 <style>
 :root{--nav:#0b1630;--nav2:#12264b;--blue:#175cd3;--blue2:#eaf2ff;--ink:#162033;--muted:#667085;--line:#dfe5ee;--bg:#f4f7fb;--card:#fff;--green:#067647;--greenbg:#dcfae6;--red:#b42318;--redbg:#fee4e2;--amber:#b54708;--amberbg:#fef0c7;--shadow:0 8px 26px rgba(16,24,40,.08)}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.app{min-height:100vh}.top{background:linear-gradient(135deg,var(--nav),var(--nav2));color:#fff;padding:16px max(14px,env(safe-area-inset-left)) 12px;position:sticky;top:0;z-index:100;box-shadow:0 5px 20px #0003}.brandrow{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand h1{margin:0;font-size:18px;font-weight:900;letter-spacing:.2px}.brand p{margin:3px 0 0;font-size:11px;color:#c9d5ea}.backup{border:1px solid #ffffff30;background:#ffffff12;color:#fff;border-radius:12px;padding:9px 12px;font-weight:800}.tabs{display:flex;gap:8px;overflow-x:auto;margin-top:13px;padding-bottom:2px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{flex:0 0 auto;border:1px solid #ffffff24;background:#ffffff10;color:#e7edf8;border-radius:13px;padding:10px 14px;font-weight:850}.tab.active{background:#fff;color:#152033}.wrap{max-width:1240px;margin:auto;padding:14px}.page{display:none}.page.active{display:block}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}.stat small{font-size:11px;font-weight:850;color:var(--muted)}.stat b{display:block;font-size:27px;margin-top:4px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px;margin-top:12px;box-shadow:var(--shadow)}.head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.head h2{font-size:17px;margin:0}.muted{color:var(--muted);font-size:12px}.formgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:13px}.field label{display:block;font-size:11px;font-weight:850;color:#475467;margin-bottom:5px}.field input,.field select,.field textarea{width:100%;border:1px solid #cfd7e4;background:#fff;border-radius:11px;padding:10px 11px;color:var(--ink);outline:0}.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px #175cd31c}.field textarea{min-height:70px;resize:vertical}.span2{grid-column:span 2}.span4{grid-column:1/-1}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}.btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;border:0;border-radius:11px;padding:10px 13px;font-weight:850}.primary{background:var(--blue);color:#fff}.secondary{background:#eef2f6;color:#172033}.success{background:var(--greenbg);color:var(--green)}.danger{background:var(--redbg);color:var(--red)}.dark{background:#101828;color:#fff}.amber{background:var(--amberbg);color:var(--amber)}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:11px 0}.toolbar input,.toolbar select{border:1px solid #cfd7e4;border-radius:10px;padding:9px 10px;background:#fff}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}.table{width:100%;border-collapse:collapse;min-width:1050px}.table th,.table td{padding:8px 9px;border-bottom:1px solid var(--line);font-size:11px;text-align:left;vertical-align:top}.table th{background:#f7f9fc;font-weight:900;color:#344054;white-space:nowrap}.table tr:last-child td{border-bottom:0}.badge{display:inline-block;border-radius:999px;padding:4px 7px;font-size:10px;font-weight:900;white-space:nowrap}.in{background:var(--greenbg);color:var(--green)}.out{background:var(--redbg);color:var(--red)}.warn{background:var(--amberbg);color:var(--amber)}.notice{padding:11px 12px;background:var(--blue2);color:#175cd3;border-radius:12px;font-size:12px;margin-top:11px}.empty{text-align:center;padding:28px;color:#98a2b3}.footer{text-align:center;color:#98a2b3;font-size:10px;padding:22px 12px 28px}.reporthead{display:none}.summarygrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.summarybox{border:1px solid var(--line);border-radius:12px;padding:10px}.summarybox small{font-size:9px;color:var(--muted);font-weight:800}.summarybox b{display:block;font-size:20px;margin-top:2px}
@@ -51,7 +51,7 @@ window.HVSS_CENTRAL_CONFIG = {
   keyHeaders: ["No","Date Out","Time Out","Borrower","Division","Security OUT","Nama Kunci","Key Number","Date In","Time In","Nama Yang Mengembalikan","Divisi IN","Security IN","Remark OUT","Keterangan","Status"]
 };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script id="HVSS_CENTRAL_CONFIG">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script id="HVSS_CENTRAL_RUNTIME_CONFIG">
 window.HVSS_CENTRAL = {
   spreadsheetId: "1z8oI95w0JITz9ILxLUjAszg0ijg4qz75huQiwRSkVBA",
   gasUrl: "https://script.google.com/macros/s/AKfycbxsXmQDGTgd1bJwZHyR7QRpuAbDv6-GoRGpm9ypHqp0S2StWhz4QntHqI89oMAcrL0dIg/exec",
@@ -62,18 +62,6 @@ window.HVSS_VISITOR_HEADERS=["No", "Date", "Time In", "Time Out", "Name", "Compa
 window.HVSS_KEY_HEADERS=["No", "Date Out", "Time Out", "Nama Peminjam", "Divisi", "Security OUT", "Nama Kunci", "Key Number", "Date In", "Time In", "Nama Yang Mengembalikan", "Divisi IN", "Security IN", "Remark OUT", "Keterangan", "Status"];
 </script>
 
-
-
-<script id="HVSS_GLOBAL_DATE_HELPER">
-window.HVSS_DATE_KEY=function(v){
-  v=String(v==null?"":v).trim();
-  if(!v)return "";
-  let m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if(m)return v;
-  m=v.match(/^(?:[^,]+,\s*)?(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-  return m ? `${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}` : v;
-};
-</script>
 
 </head>
 <body>
@@ -89,6 +77,7 @@ window.HVSS_DATE_KEY=function(v){
   <button type="button" class="tab active" data-page="dashboard">Dashboard</button>
   <button type="button" class="tab" data-page="visitor">Visit Registration</button>
   <button type="button" class="tab" data-page="key">Key Loan</button>
+  <button type="button" class="tab" data-page="keylog">Key Loan Log</button>
   <button type="button" class="tab" data-page="report">Daily Report</button>
   <button type="button" class="tab" data-page="history">History</button>
  </nav>
@@ -213,6 +202,28 @@ Citra Dewi | ID003"></textarea></div>
  </div>
 </section>
 
+<section class="page" id="keylog">
+ <div class="card">
+  <div class="head">
+   <div><h2>Key Loan Log</h2><div class="muted">Central history dari Google Spreadsheet • bisa dicari berdasarkan tanggal</div></div>
+   <div class="actions no-print" style="margin:0">
+    <button type="button" class="btn dark" id="keyLogExcel">Excel</button>
+    <button type="button" class="btn primary" id="keyLogPdf">PDF</button>
+   </div>
+  </div>
+  <div class="toolbar no-print">
+   <input id="keyLogDate" type="date" aria-label="Tanggal Key Loan Log">
+   <select id="keyLogStatus"><option value="">All Status</option><option value="KEY OUT">KEY OUT</option><option value="RETURNED">RETURNED</option></select>
+   <input id="keyLogSearch" placeholder="Search borrower / key / division">
+   <button type="button" class="btn secondary" id="keyLogToday">Today</button>
+   <button type="button" class="btn secondary" id="keyLogAll">All History</button>
+   <button type="button" class="btn secondary" id="keyLogRefresh">↻ Refresh Central</button>
+  </div>
+  <div class="muted" id="keyLogStatusText" style="margin:6px 0 10px">Belum mengambil data CENTRAL.</div>
+  <div class="tablewrap"><table class="table"><thead><tr><th>No</th><th>Date Out</th><th>Time Out</th><th>Borrower</th><th>Division</th><th>Security OUT</th><th>Key</th><th>Number</th><th>Date In</th><th>Time In</th><th>Returner</th><th>Security IN</th><th>Remark</th><th>Status</th></tr></thead><tbody id="keyLogBody"></tbody></table></div>
+ </div>
+</section>
+
 <section class="page" id="report">
  <div class="card">
   <div class="head"><div><h2>Daily Security Report</h2><div class="muted">1×24 jam • seluruh entry pada tanggal terpilih</div></div></div>
@@ -241,7 +252,7 @@ Citra Dewi | ID003"></textarea></div>
 </div>
 
 <script>
-const GAS_API_URL="https://script.google.com/macros/s/AKfycbxsXmQDGTgd1bJwZHyR7QRpuAbDv6-GoRGpm9ypHqp0S2StWhz4QntHqI89oMAcrL0dIg/exec";
+const GAS_API_URL="https://script.google.com/macros/s/AKfycbzpbab3_fYUaDGQpooOvK_uhp6IvXhojeua4-3YQ4hMAzJwYTePGkts8hUmoCiyKLyGjQ/exec";
 (function(){
 "use strict";
 const KEY="HVSS_SCC_V5_PRO";
@@ -361,6 +372,133 @@ function delKey(id){if(confirm("Hapus transaksi key ini?")){db.keys=db.keys.filt
 function renderKeys(){let q=($("kSearch").value||"").toLowerCase(),st=$("kStatus").value||"",a=db.keys.filter(x=>(!st||(st==="OUT"?!x.inDate:!!x.inDate))&&(!q||[x.borrower,x.division,x.keyName,x.keyNumber,x.security].join(" ").toLowerCase().includes(q))).sort((a,b)=>(b.outDate+b.outTime).localeCompare(a.outDate+a.outTime));$("kCount").textContent=a.length+" record(s)";$("keyBody").innerHTML=a.length?a.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(dateLabel(x.outDate))}</td><td>${esc(x.outTime)}</td><td><b>${esc(x.borrower)}</b></td><td>${esc(x.division)}</td><td>${esc(x.security)}</td><td>${esc(x.keyName)}</td><td>${esc(x.keyNumber)}</td><td>${esc(dateLabel(x.inDate))}</td><td>${esc(x.inTime)}</td><td>${esc(x.securityIn||x.inSecurity||x.returner)}</td><td>${esc(x.note||x.remark)}</td><td><span class="badge ${x.inDate?"in":"out"}">${x.inDate?"RETURNED":"KEY OUT"}</span></td><td class="no-print">${x.inDate?"":"<button type='button' class='btn success' onclick=\"window.HVSS_OPEN_RETURN_SECURITY('"+x.id+"')\">Return</button> "}<button type="button" class="btn secondary" onclick="window.HVSS.editKey('${x.id}')">Edit</button> <button type="button" class="btn danger" onclick="window.HVSS.delKey('${x.id}')">Delete</button></td></tr>`).join(""):'<tr><td colspan="14" class="empty">Belum ada transaksi key.</td></tr>'}
 $("kSearch").oninput=renderKeys;$("kStatus").onchange=renderKeys;
 
+function filteredKeyLogRows(){
+  const q=($("keyLogSearch")?.value||"").trim().toLowerCase();
+  const d=$("keyLogDate")?.value||"";
+  const st=$("keyLogStatus")?.value||"";
+  return (Array.isArray(db.keys)?db.keys:[]).filter(x=>{
+    const dateMatch=!d||dateKey(x.outDate)===d||dateKey(x.inDate)===d;
+    const status=x.inDate?"RETURNED":"KEY OUT";
+    const statusMatch=!st||status===st;
+    const hay=[x.borrower,x.division,x.security,x.keyName,x.keyNumber,x.inDivision,x.inSecurity,x.returner,x.remark,x.note,status].join(" ").toLowerCase();
+    return dateMatch&&statusMatch&&(!q||hay.includes(q));
+  }).sort((a,b)=>{
+    const ak=(dateKey(a.outDate)||dateKey(a.inDate))+" "+(a.outTime||a.inTime||"");
+    const bk=(dateKey(b.outDate)||dateKey(b.inDate))+" "+(b.outTime||b.inTime||"");
+    return bk.localeCompare(ak);
+  });
+}
+function renderKeyLog(){
+  const body=$("keyLogBody"), rows=filteredKeyLogRows();
+  if(!body)return;
+  body.innerHTML=rows.length?rows.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(dateLabel(x.outDate)||"—")}</td><td>${esc(x.outTime||"—")}</td><td>${esc(x.borrower||"—")}</td><td>${esc(x.division||"—")}</td><td>${esc(x.security||"—")}</td><td>${esc(x.keyName||"—")}</td><td>${esc(x.keyNumber||"—")}</td><td>${esc(dateLabel(x.inDate)||"—")}</td><td>${esc(x.inTime||"—")}</td><td>${esc(x.returner||"—")}</td><td>${esc(x.inSecurity||"—")}</td><td>${esc(x.remark||x.note||"—")}</td><td><span class="badge ${x.inDate?"in":"out"}">${x.inDate?"RETURNED":"KEY OUT"}</span></td></tr>`).join(""):'<tr><td colspan="14" class="empty">Tidak ada data pada filter ini.</td></tr>';
+  const st=$("keyLogStatusText");
+  if(st)st.textContent=rows.length+" record(s) • sumber: Google Spreadsheet CENTRAL";
+}
+async function refreshKeyLog(){
+  const st=$("keyLogStatusText");
+  if(st)st.textContent="Mengambil data Key Loan dari CENTRAL...";
+  try{
+    if(!window.HVSS_CENTRAL_PULL)throw new Error("Central engine belum siap");
+    const r=await window.HVSS_CENTRAL_PULL();
+    renderKeyLog();
+    if(st)st.textContent=r.keys.length+" record(s) CENTRAL • data log siap";
+    return r.keys;
+  }catch(e){
+    renderKeyLog();
+    if(st)st.textContent="Gagal mengambil CENTRAL: "+(e.message||e);
+    throw e;
+  }
+}
+function exportSafeDateKey(v){
+  try{
+    v=String(v==null?"":v).trim();
+    if(!v)return "";
+    if(/^\\d{4}-\\d{2}-\\d{2}$/.test(v))return v;
+    const m=v.match(/^(?:[A-Za-z]+,?\\s*)?(\\d{1,2})[-\\/](\\d{1,2})[-\\/](\\d{4})$/);
+    if(m)return m[3]+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0");
+    const d=new Date(v);
+    if(!isNaN(d.getTime()))return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    return v;
+  }catch(e){return String(v==null?"":v)}
+}
+function exportSafeDateLabel(v){
+  const k=exportSafeDateKey(v);
+  if(!k)return "";
+  const m=k.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  return m?m[3]+"-"+m[2]+"-"+m[1]:String(v);
+}
+function centralRaw(x){return x&&x.__centralRaw&&typeof x.__centralRaw==="object"?x.__centralRaw:x}
+function keyLogRowsForExport(){
+  const rows=filteredKeyLogRows();
+  return [window.HVSS_KEY_HEADERS].concat(rows.map((x,i)=>{
+    const r=centralRaw(x);
+    return [
+      r.no!=null&&r.no!==""?r.no:i+1,
+      r.dateOut!=null?r.dateOut:(r.outDate!=null?r.outDate:exportSafeDateLabel(x.outDate)),
+      r.timeOut!=null?r.timeOut:(r.outTime!=null?r.outTime:(x.outTime||"")),
+      r.borrower!=null?r.borrower:(x.borrower||""),
+      r.division!=null?r.division:(x.division||""),
+      r.securityOut!=null?r.securityOut:(r.security!=null?r.security:(x.security||"")),
+      r.namaKunci!=null?r.namaKunci:(r.keyName!=null?r.keyName:(x.keyName||"")),
+      r.keyNumber!=null?r.keyNumber:String(x.keyNumber||""),
+      r.dateIn!=null?r.dateIn:(r.inDate!=null?r.inDate:exportSafeDateLabel(x.inDate)),
+      r.timeIn!=null?r.timeIn:(r.inTime!=null?r.inTime:(x.inTime||"")),
+      r.namaYangMengembalikan!=null?r.namaYangMengembalikan:(r.returner!=null?r.returner:(x.returner||"")),
+      r.divisiIn!=null?r.divisiIn:(r.inDivision!=null?r.inDivision:(x.inDivision||"")),
+      r.securityIn!=null?r.securityIn:(r.inSecurity!=null?r.inSecurity:(x.inSecurity||"")),
+      r.remarkOut!=null?r.remarkOut:(r.remark!=null?r.remark:(x.remark||"")),
+      r.keterangan!=null?r.keterangan:(r.note!=null?r.note:(x.note||"")),
+      r.status!=null?r.status:(x.inDate?"RETURNED":"KEY OUT")
+    ];
+  }));
+}
+async function exportKeyLogExcel(){
+  try{await refreshKeyLog();exportWorkbook([{name:"Key Loan Log",rows:keyLogRowsForExport()}],"HVSS_Key_Loan_Log.xlsx");}
+  catch(e){alert("Export Key Loan Log gagal: "+(e.message||e));}
+}
+async function exportKeyLogPdf(){
+  try{await refreshKeyLog();hvssBuildKeyLogPdf();}
+  catch(e){alert("PDF Key Loan Log gagal: "+(e.message||e));}
+}
+$("keyLogSearch").oninput=renderKeyLog;
+$("keyLogDate").onchange=renderKeyLog;
+$("keyLogStatus").onchange=renderKeyLog;
+$("keyLogToday").onclick=()=>{$("keyLogDate").value=today();renderKeyLog()};
+$("keyLogAll").onclick=()=>{$("keyLogDate").value="";renderKeyLog()};
+$("keyLogRefresh").onclick=()=>refreshKeyLog().catch(()=>{});
+$("keyLogExcel").onclick=exportKeyLogExcel;
+$("keyLogPdf").onclick=exportKeyLogPdf;
+$("keyLogDate").value=today();
+
+function hvssBuildKeyLogPdf(){
+  if(!window.jspdf||!window.jspdf.jsPDF)throw new Error("PDF engine belum siap. Pastikan internet aktif lalu refresh halaman.");
+  if(!window.jspdf.jsPDF.API||typeof window.jspdf.jsPDF.API.autoTable!="function")throw new Error("PDF table engine belum siap. Refresh halaman.");
+  const {jsPDF}=window.jspdf;
+  const exportRows=keyLogRowsForExport();
+  const d=$("keyLogDate").value||"";
+  const titleDate=d?exportSafeDateLabel(d):"ALL HISTORY";
+  const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+  const NAVY=[13,28,48],BLUE=[27,83,139],LINE=[210,219,229];
+  let pageNo=0;
+  function footer(){pageNo++;doc.setDrawColor(...LINE);doc.line(12,H-11,W-12,H-11);doc.setTextColor(105,115,125);doc.setFont("helvetica","normal");doc.setFontSize(7);doc.text("HVSS Security Control Center • Key Loan Log",12,H-6);doc.text("Page "+pageNo,W-12,H-6,{align:"right"});}
+  doc.setFillColor(...NAVY);doc.rect(0,0,W,25,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("HVSS SECURITY CONTROL CENTER",12,10);doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text("KEY LOAN LOG",12,17);doc.text(titleDate,W-12,17,{align:"right"});
+  doc.setTextColor(...NAVY);doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("CENTRAL KEY LOAN HISTORY",12,33);
+  doc.autoTable({
+    startY:39,
+    head:[window.HVSS_KEY_HEADERS],
+    body:exportRows.slice(1).map(r=>r.map(v=>v==null||v===""?"—":String(v))),
+    theme:"grid",
+    styles:{font:"helvetica",fontSize:5.5,cellPadding:1.35,textColor:[35,45,58],lineColor:LINE,lineWidth:.25,overflow:"linebreak",valign:"middle"},
+    headStyles:{fillColor:BLUE,textColor:255,fontStyle:"bold",fontSize:5.5},
+    alternateRowStyles:{fillColor:[250,251,253]},
+    margin:{left:8,right:8,bottom:17},
+    didDrawPage:footer
+  });
+  doc.save("HVSS_Key_Loan_Log_"+(d||"ALL_HISTORY")+".pdf");
+}
+
 function reportData(){let d=$("reportDate").value||today(),v=db.visitors.filter(x=>dateKey(x.date)===d).sort((a,b)=>(a.timeIn||"99:99").localeCompare(b.timeIn||"99:99")),k=db.keys.filter(x=>dateKey(x.outDate)===d||dateKey(x.inDate)===d).sort((a,b)=>(a.outTime||"99:99").localeCompare(b.outTime||"99:99"));return {d,v,k}}
 function renderReport(){let r=reportData();$("printDate").textContent="Reporting Date: "+dateLabel(r.d);$("rVisitors").textContent=r.v.length;$("rInside").textContent=r.v.filter(x=>x.timeIn&&!x.timeOut).length;$("rKeys").textContent=r.k.length;$("rKeyOut").textContent=r.k.filter(x=>!x.inDate).length;$("reportVisitorBody").innerHTML=r.v.length?r.v.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.timeIn)}</td><td>${esc(x.timeOut)}</td><td>${esc(x.name)}</td><td>${esc(x.company)}</td><td>${esc(x.idcard)}</td><td>${esc(x.purpose)}</td><td>${esc(x.area)}</td><td>${esc(x.remark)}</td><td><span class="badge ${x.timeOut?"in":"out"}">${x.timeOut?"OUT":"INSIDE"}</span></td></tr>`).join(""):'<tr><td colspan="10" class="empty">Tidak ada visitor pada tanggal ini.</td></tr>';$("reportKeyBody").innerHTML=r.k.length?r.k.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.outTime)}</td><td>${esc(x.borrower)}</td><td>${esc(x.division)}</td><td>${esc(x.security)}</td><td>${esc(x.keyName)}</td><td>${esc(x.keyNumber)}</td><td>${esc(x.inTime)}</td><td>${esc(x.returner)}</td><td><span class="badge ${x.inDate?"in":"out"}">${x.inDate?"RETURNED":"KEY OUT"}</span></td></tr>`).join(""):'<tr><td colspan="10" class="empty">Tidak ada transaksi key pada tanggal ini.</td></tr>'}
 $("reportDate").value=today();$("reportDate").onchange=renderReport;$("reportToday").onclick=()=>{$("reportDate").value=today();renderReport()};
@@ -368,7 +506,6 @@ $("reportDate").value=today();$("reportDate").onchange=renderReport;$("reportTod
 function renderDashboard(){let d=today(),v=db.visitors.filter(x=>dateKey(x.date)===d),k=db.keys;$("sVisit").textContent=v.length;$("sInside").textContent=v.filter(x=>x.timeIn&&!x.timeOut).length;$("sKeyOut").textContent=k.filter(x=>!x.inDate).length;$("sKeyIn").textContent=k.filter(x=>!!x.inDate).length;$("dashDate").textContent="Today: "+dateLabel(d);let a=k.filter(x=>!x.inDate).sort((a,b)=>(b.outDate+b.outTime).localeCompare(a.outDate+a.outTime));$("dashKeys").innerHTML=a.length?a.slice(0,12).map(x=>`<div style="padding:9px 0;border-bottom:1px solid var(--line)"><b>${esc(x.keyName)}</b> • ${esc(x.keyNumber)} — ${esc(x.borrower)} <span class="badge out">KEY OUT</span></div>`).join(""):'<div class="empty">Tidak ada key aktif.</div>'}
 function renderHistory(){let a=db.visitors.map(x=>({date:x.date,time:x.timeIn,type:"VISITOR",name:x.name,detail:(x.company||"")+" • "+(x.area||"")})).concat(db.keys.map(x=>({date:x.inDate||x.outDate,time:x.inTime||x.outTime,type:x.inDate?"KEY RETURNED":"KEY OUT",name:x.borrower,detail:x.keyName+" • "+(x.keyNumber||"")}))).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));$("historyBody").innerHTML=a.length?a.map(x=>`<tr><td>${esc(dateLabel(x.date))}</td><td>${esc(x.time)}</td><td>${esc(x.type)}</td><td>${esc(x.name)}</td><td>${esc(x.detail)}</td></tr>`).join(""):'<tr><td colspan="5" class="empty">Belum ada history.</td></tr>'}
 function renderAll(){renderDashboard();renderVisitors();renderKeys();renderReport();renderHistory()}
-window.HVSS_RENDER_ALL=renderAll;
 
 function download(name,data,type){let blob=new Blob([data],{type:type||"application/octet-stream"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
 function xml(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;")}
@@ -413,8 +550,41 @@ function xlsxBlob(sheets){
   const raw=zipStore(files);return new Blob([raw],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
 function cleanReportValue(v){return typeof v==="string"?v.replace(/CREATED\s*BY\s*:?\s*Mbah\s*Pri/ig,"").trim():v}
-function makeVisitorRows(date){let a=db.visitors.filter(x=>!date||dateKey(x.date)===date).sort((x,y)=>(dateKey(x.date)+x.timeIn+x.name).localeCompare(dateKey(y.date)+y.timeIn+y.name));return [window.HVSS_VISITOR_HEADERS].concat(a.map((x,i)=>[i+1,dateLabel(x.date),x.timeIn||"",x.timeOut||"",x.name||"",x.company||"",String(x.idcard||""),x.purpose||"",x.area||"",x.remark||"",x.timeOut?"OUT":"INSIDE"]))}
-function makeKeyRows(date){let a=db.keys.filter(x=>!date||dateKey(x.outDate)===date||dateKey(x.inDate)===date).sort((x,y)=>(dateKey(x.outDate)+x.outTime+x.borrower).localeCompare(dateKey(y.outDate)+y.outTime+y.borrower));return [window.HVSS_KEY_HEADERS].concat(a.map((x,i)=>[i+1,dateLabel(x.outDate),x.outTime||"",x.borrower||"",x.division||"",x.security||"",x.keyName||"",String(x.keyNumber||""),dateLabel(x.inDate),x.inTime||"",x.returner||"",x.inDivision||"",x.inSecurity||"",x.remark||"",x.note||"",x.inDate?"RETURNED":"KEY OUT"]))}
+function makeVisitorRows(date){
+  let a=db.visitors.filter(x=>!date||exportSafeDateKey(x.date)===date)
+    .sort((x,y)=>(exportSafeDateKey(x.date)+x.timeIn+x.name).localeCompare(exportSafeDateKey(y.date)+y.timeIn+y.name));
+  return [window.HVSS_VISITOR_HEADERS].concat(a.map((x,i)=>{
+    const r=centralRaw(x);
+    return [r.no!=null&&r.no!==""?r.no:i+1,r.date!=null?r.date:exportSafeDateLabel(x.date),
+      r.timeIn!=null?r.timeIn:(x.timeIn||""),r.timeOut!=null?r.timeOut:(x.timeOut||""),
+      r.name!=null?r.name:(x.name||""),r.company!=null?r.company:(x.company||""),
+      r.idcard!=null?r.idcard:String(x.idcard||""),r.purpose!=null?r.purpose:(x.purpose||""),
+      r.area!=null?r.area:(x.area||""),r.remark!=null?r.remark:(x.remark||""),
+      r.status!=null?r.status:(x.timeOut?"OUT":"INSIDE")];
+  }));
+}
+function makeKeyRows(date){
+  let a=db.keys.filter(x=>!date||exportSafeDateKey(x.outDate)===date||exportSafeDateKey(x.inDate)===date)
+    .sort((x,y)=>(exportSafeDateKey(x.outDate)+x.outTime+x.borrower).localeCompare(exportSafeDateKey(y.outDate)+y.outTime+y.borrower));
+  return [window.HVSS_KEY_HEADERS].concat(a.map((x,i)=>{
+    const r=centralRaw(x);
+    return [r.no!=null&&r.no!==""?r.no:i+1,
+      r.dateOut!=null?r.dateOut:(r.outDate!=null?r.outDate:exportSafeDateLabel(x.outDate)),
+      r.timeOut!=null?r.timeOut:(r.outTime!=null?r.outTime:(x.outTime||"")),
+      r.borrower!=null?r.borrower:(x.borrower||""),r.division!=null?r.division:(x.division||""),
+      r.securityOut!=null?r.securityOut:(r.security!=null?r.security:(x.security||"")),
+      r.namaKunci!=null?r.namaKunci:(r.keyName!=null?r.keyName:(x.keyName||"")),
+      r.keyNumber!=null?r.keyNumber:String(x.keyNumber||""),
+      r.dateIn!=null?r.dateIn:(r.inDate!=null?r.inDate:exportSafeDateLabel(x.inDate)),
+      r.timeIn!=null?r.timeIn:(r.inTime!=null?r.inTime:(x.inTime||"")),
+      r.namaYangMengembalikan!=null?r.namaYangMengembalikan:(r.returner!=null?r.returner:(x.returner||"")),
+      r.divisiIn!=null?r.divisiIn:(r.inDivision!=null?r.inDivision:(x.inDivision||"")),
+      r.securityIn!=null?r.securityIn:(r.inSecurity!=null?r.inSecurity:(x.inSecurity||"")),
+      r.remarkOut!=null?r.remarkOut:(r.remark!=null?r.remark:(x.remark||"")),
+      r.keterangan!=null?r.keterangan:(r.note!=null?r.note:(x.note||"")),
+      r.status!=null?r.status:(x.inDate?"RETURNED":"KEY OUT")];
+  }));
+}
 function exportWorkbook(sheets,name){sheets=sheets.map(sh=>({name:sh.name,rows:sh.rows.map(r=>r.map(cleanReportValue))}));let blob=xlsxBlob(sheets),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
 function exportXlsx(rows,name){exportWorkbook([{name:"Report",rows}],name)}
 async function exportFromCentral(sheets,name){try{if(window.HVSS_CENTRAL_PULL)await window.HVSS_CENTRAL_PULL();exportWorkbook(sheets(),name)}catch(e){alert("Export gagal mengambil CENTRAL: "+(e.message||e))}}
@@ -479,12 +649,8 @@ function hvssBuildPdf(mode){
     summary(40);
     doc.autoTable({
       startY:62,
-      head:[["NO","TIME IN","TIME OUT","NAME","COMPANY","ID CARD","PURPOSE / ACTIVITY","AREA","REMARK","STATUS"]],
-      body:r.v.map((x,i)=>[
-        i+1,x.timeIn||"—",x.timeOut||"—",x.name||"—",x.company||"—",
-        x.idcard||"—",x.purpose||"—",x.area||"—",x.remark||"—",
-        x.timeOut?"OUT":"INSIDE"
-      ]),
+      head:[window.HVSS_VISITOR_HEADERS],
+       body:makeVisitorRows(r.d).slice(1).map(row=>row.map(v=>v==null||v===""?"—":String(v))),
       theme:"grid",
       styles:{font:"helvetica",fontSize:7,cellPadding:2,textColor:[35,45,58],lineColor:LINE,lineWidth:.25,overflow:"linebreak"},
       headStyles:{fillColor:BLUE,textColor:255,fontStyle:"bold",fontSize:7},
@@ -501,12 +667,8 @@ function hvssBuildPdf(mode){
     summary(40);
     doc.autoTable({
       startY:62,
-      head:[["NO","OUT","PEMINJAM","DIVISI","SECURITY","NAMA KUNCI","KEY NO.","IN","PENGEMBALI","STATUS"]],
-      body:r.k.map((x,i)=>[
-        i+1,x.outTime||"—",x.borrower||"—",x.division||"—",x.security||"—",
-        x.keyName||"—",x.keyNumber||"—",x.inTime||"—",x.returner||"—",
-        x.inDate?"RETURNED":"KEY OUT"
-      ]),
+      head:[window.HVSS_KEY_HEADERS],
+       body:makeKeyRows(r.d).slice(1).map(row=>row.map(v=>v==null||v===""?"—":String(v))),
       theme:"grid",
       styles:{font:"helvetica",fontSize:7,cellPadding:2,textColor:[35,45,58],lineColor:LINE,lineWidth:.25,overflow:"linebreak"},
       headStyles:{fillColor:BLUE,textColor:255,fontStyle:"bold",fontSize:7},
@@ -515,6 +677,31 @@ function hvssBuildPdf(mode){
       didDrawPage:footer
     });
     doc.save("HVSS_Key_Control_Report_"+r.d+".pdf");
+    return;
+  }
+
+  if(mode==="daily"){
+    pageHeader("DAILY SECURITY REPORT","Reporting Date: "+dateLabel(r.d));
+    summary(40);
+    doc.autoTable({
+      startY:62,
+      head:[window.HVSS_VISITOR_HEADERS],
+       body:makeVisitorRows(r.d).slice(1).map(row=>row.map(v=>v==null||v===""?"—":String(v))),
+      theme:"grid",styles:{font:"helvetica",fontSize:7,cellPadding:2,textColor:[35,45,58],lineColor:LINE,lineWidth:.25,overflow:"linebreak"},
+      headStyles:{fillColor:BLUE,textColor:255,fontStyle:"bold",fontSize:7},alternateRowStyles:{fillColor:[250,251,253]},
+      margin:{left:12,right:12,bottom:17},didDrawPage:footer
+    });
+    let y=doc.lastAutoTable.finalY+10;
+    doc.setTextColor(...NAVY);doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("KEY CONTROL ACTIVITY",12,y);
+    doc.autoTable({
+      startY:y+6,
+      head:[window.HVSS_KEY_HEADERS],
+       body:makeKeyRows(r.d).slice(1).map(row=>row.map(v=>v==null||v===""?"—":String(v))),
+      theme:"grid",styles:{font:"helvetica",fontSize:7,cellPadding:2,textColor:[35,45,58],lineColor:LINE,lineWidth:.25,overflow:"linebreak"},
+      headStyles:{fillColor:BLUE,textColor:255,fontStyle:"bold",fontSize:7},alternateRowStyles:{fillColor:[250,251,253]},
+      margin:{left:12,right:12,bottom:17},didDrawPage:footer
+    });
+    doc.save("HVSS_Daily_Report_"+r.d+".pdf");
     return;
   }
 
@@ -557,11 +744,13 @@ $("kPdf").onclick=()=>{
   $("reportDate").value=d; renderReport(); go("report");
   setTimeout(()=>hvssBuildPdf("key"),150);
 };
-$("reportPdf").onclick=()=>{renderReport();setTimeout(()=>hvssBuildPdf("visitor"),100)};
+$("reportPdf").onclick=()=>{renderReport();setTimeout(()=>hvssBuildPdf("daily"),100)};
 $("allPdf").onclick=()=>hvssBuildPdf("history");
 
 window.HVSS={editVisitor,delVisitor,editKey,returnKey,delKey};
-resetVisitor();resetKey();resetBulkVisitor();resetBulkKey();renderAll();if(window.HVSS_AUTO_SYNC)setTimeout(window.HVSS_AUTO_SYNC,1200);
+resetVisitor();resetKey();resetBulkVisitor();resetBulkKey();renderAll();renderKeyLog();
+document.querySelector('[data-page="keylog"]')?.addEventListener("click",()=>{refreshKeyLog().catch(()=>{})});
+if(window.HVSS_AUTO_SYNC)setTimeout(window.HVSS_AUTO_SYNC,1200);
 })();
 </script>
 
@@ -581,53 +770,41 @@ window.parseBulkPersonLine=function(line){
 
 
 
-<script id="HVSS_CENTRAL_GLOBAL_HELPERS">
-// Global helpers for scripts that execute outside the main HVSS IIFE.
-// The previous build kept these helpers scoped inside the IIFE, causing
-// "normIdCard is not defined" / "dateKey is not defined" during CENTRAL pull.
-window.HVSS_DATE_KEY = function(v){
-  v=String(v==null?"":v).trim(); if(!v)return "";
-  let m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(m)return v;
-  m=v.match(/^(?:[^,]+,\s*)?(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-  return m?`${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`:v;
-};
-window.HVSS_NORM_IDCARD = function(v){return String(v==null?"":v).trim();};
-window.HVSS_NORM_TIME = function(v){
-  v=String(v==null?"":v).trim(); if(!v)return "";
-  let m=v.match(/^(\d{1,2}):(\d{1,2})/);
-  return m?String(parseInt(m[1],10)).padStart(2,"0")+":"+String(parseInt(m[2],10)).padStart(2,"0"):v;
-};
-</script>
-
 <script id="HVSS_RELIABLE_SYNC_ENGINE">
 (function(){
   const C=window.HVSS_CENTRAL;
   let syncTimer=null,syncing=false;
-  function setStatus(t){const s=document.getElementById("centralSyncStatus");if(s)s.textContent=t;}
-  function normalizeCentralResponse(data){
-    // GAS deployments in the wild may return {ok:true}, {success:true},
-    // or wrap the payload in {data:{...}}. Accept all valid forms.
-    if(typeof data === "string"){ try{ data=JSON.parse(data); }catch(e){} }
-    if(data && data.data && typeof data.data === "object" && !Array.isArray(data.data)){
-      const wrapped=data.data;
-      if(data.ok==null && data.success==null) data=wrapped;
-      else data=Object.assign({},wrapped,data);
-    }
-    if(!data || (data.ok!==true && data.success!==true && data.status!=="ok")){
-      const detail=data && (data.error||data.message||data.reason);
-      throw new Error(detail ? String(detail) : "Respons CENTRAL tidak valid. Pastikan Code.gs terbaru sudah DEPLOY sebagai Web App.");
-    }
-    return data;
+
+  // IMPORTANT: this engine runs in its own IIFE. The helpers in the
+  // main application scope are not visible here, so keep local copies.
+  // This prevents CENTRAL refresh/export from failing with
+  // "dateKey is not defined".
+  function centralDateKey(v){
+    v=String(v==null?"":v).trim(); if(!v)return "";
+    let m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/); if(m)return v;
+    m=v.match(/^(?:[^,]+,\s*)?(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    return m?`${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`:v;
   }
-  function applyCentral(raw){
-    const data=normalizeCentralResponse(raw);
-    const dk=window.HVSS_DATE_KEY;
-    const incoming={visitors:(Array.isArray(data.visitors)?data.visitors:(Array.isArray(data.visitorData)?data.visitorData:[])).map(x=>({...x,date:dk(x.date),idcard:window.HVSS_NORM_IDCARD(x.idcard),timeIn:window.HVSS_NORM_TIME(x.timeIn),timeOut:window.HVSS_NORM_TIME(x.timeOut)})),keys:(Array.isArray(data.keys)?data.keys:(Array.isArray(data.keyData)?data.keyData:[])).map(x=>({...x,outDate:dk(x.outDate),inDate:dk(x.inDate),outTime:window.HVSS_NORM_TIME(x.outTime),inTime:window.HVSS_NORM_TIME(x.inTime),keyName:String(x.keyName==null?"":x.keyName),keyNumber:String(x.keyNumber==null?"":x.keyNumber)}))};
+  function centralNormIdCard(v){return String(v==null?"":v).trim()}
+  function centralNormTime(v){
+    v=String(v==null?"":v).trim(); if(!v)return "";
+    const m=v.match(/^(\d{1,2}):(\d{1,2})/);
+    return m?String(parseInt(m[1],10)).padStart(2,"0")+":"+String(parseInt(m[2],10)).padStart(2,"0"):v;
+  }
+  function setStatus(t){const s=document.getElementById("centralSyncStatus");if(s)s.textContent=t;}
+  function applyCentral(data){
+    if(!data||!data.ok) throw new Error((data&&data.error)||"Central response invalid");
+    const incoming={
+  visitors:(Array.isArray(data.visitors)?data.visitors:[]).map(x=>({...x,__centralRaw:{...x},date:centralDateKey(x.date),idcard:centralNormIdCard(x.idcard),timeIn:centralNormTime(x.timeIn),timeOut:centralNormTime(x.timeOut)})),
+  keys:(Array.isArray(data.keys)?data.keys:[]).map(x=>({...x,__centralRaw:{...x},outDate:centralDateKey(x.outDate),inDate:centralDateKey(x.inDate),outTime:centralNormTime(x.outTime),inTime:centralNormTime(x.inTime),keyName:String(x.keyName==null?"":x.keyName),keyNumber:String(x.keyNumber==null?"":x.keyNumber)}))
+};
     window.HVSS_DB.visitors=incoming.visitors;
     window.HVSS_DB.keys=incoming.keys;
     localStorage.setItem("HVSS_SCC_V5_PRO",JSON.stringify(window.HVSS_DB));
     window.HVSS_DB=window.HVSS_DB;
-    if(window.HVSS_RENDER_ALL) window.HVSS_RENDER_ALL();
+    if(typeof renderAll==='function') if(document.getElementById("bkRows")&&!document.querySelector("#bkRows .key-bulk-row"))addBulkKeyRow();
+renderAll();
+    if(typeof renderKeyLog==='function')renderKeyLog();
     return incoming;
   }
   function pullCentral(){
