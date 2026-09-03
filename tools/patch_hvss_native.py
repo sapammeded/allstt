@@ -1,117 +1,36 @@
 from pathlib import Path
-p=Path('hvss2.html'); s=p.read_text(encoding='utf-8')
-if 'function nativeCentralCall(' in s and 'window.__HVSS_NATIVE_CENTRAL_RESOLVE' in s:
- print('HVSS2 native CENTRAL patch already present'); raise SystemExit(0)
-old='''function pullCentral(){
-    return new Promise((resolve,reject)=>{
-      const cb="hvssCentralCb_"+Date.now()+Math.random().toString(36).slice(2);
-      const script=document.createElement("script");
-      const timer=setTimeout(()=>{cleanup();reject(new Error("Timeout mengambil data CENTRAL"))},15000);
-      function cleanup(){clearTimeout(timer);try{delete window[cb]}catch(e){}script.remove()}
-      window[cb]=data=>{cleanup();try{resolve(applyCentral(data))}catch(e){reject(e)}};
-      script.onerror=()=>{cleanup();reject(new Error("Gagal terhubung ke Apps Script CENTRAL"))};
-      script.src=C.gasUrl+"?action=getCentral&spreadsheetId="+encodeURIComponent(C.spreadsheetId)+"&callback="+encodeURIComponent(cb)+"&_="+Date.now();
-      document.head.appendChild(script);
-    });
-  }'''
-new='''function nativeCentralCall(type, payload, timeoutMs=30000){
-    if(!window.AndroidCentral) return null;
-    return new Promise((resolve,reject)=>{
-      const id="hvssNative_"+Date.now()+"_"+Math.random().toString(36).slice(2);
-      let done=false;
-      const timer=setTimeout(()=>{done=true;delete window.__HVSS_NATIVE_CENTRAL_WAIT[id];reject(new Error("Timeout komunikasi CENTRAL"))},timeoutMs);
-      if(!window.__HVSS_NATIVE_CENTRAL_WAIT)window.__HVSS_NATIVE_CENTRAL_WAIT={};
-      window.__HVSS_NATIVE_CENTRAL_WAIT[id]=(ok,data)=>{
-        if(done)return;done=true;clearTimeout(timer);delete window.__HVSS_NATIVE_CENTRAL_WAIT[id];
-        if(ok){try{resolve(typeof data==="string"?JSON.parse(data):data)}catch(e){reject(new Error("Response CENTRAL bukan JSON: "+e.message))}}
-        else reject(new Error(String(data||"Koneksi CENTRAL gagal")));
-      };
-      try{
-        if(type==="get") AndroidCentral.getCentral(C.gasUrl,C.spreadsheetId,id);
-        else AndroidCentral.postCentral(C.gasUrl,String(payload||""),id);
-      }catch(e){clearTimeout(timer);delete window.__HVSS_NATIVE_CENTRAL_WAIT[id];reject(e)}
-    });
-  }
-  window.__HVSS_NATIVE_CENTRAL_RESOLVE=function(id,ok,data){
-    const fn=window.__HVSS_NATIVE_CENTRAL_WAIT&&window.__HVSS_NATIVE_CENTRAL_WAIT[id];
-    if(fn)fn(!!ok,String(data==null?"":data));
-  };
-  function pullCentral(){
-    const native=window.AndroidCentral?nativeCentralCall("get",null,30000):null;
-    if(native)return native.then(applyCentral);
-    return new Promise((resolve,reject)=>{
-      const cb="hvssCentralCb_"+Date.now()+Math.random().toString(36).slice(2);
-      const script=document.createElement("script");
-      const timer=setTimeout(()=>{cleanup();reject(new Error("Timeout mengambil data CENTRAL"))},15000);
-      function cleanup(){clearTimeout(timer);try{delete window[cb]}catch(e){}script.remove()}
-      window[cb]=data=>{cleanup();try{resolve(applyCentral(data))}catch(e){reject(e)}};
-      script.onerror=()=>{cleanup();reject(new Error("Gagal terhubung ke Apps Script CENTRAL"))};
-      script.src=C.gasUrl+"?action=getCentral&spreadsheetId="+encodeURIComponent(C.spreadsheetId)+"&callback="+encodeURIComponent(cb)+"&_="+Date.now();
-      document.head.appendChild(script);
-    });
-  }'''
-assert old in s, 'pullCentral anchor not found'; s=s.replace(old,new,1)
-old2='''      let sent=false;
-      try{
-        const r=await fetch(C.gasUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
-        const text=await r.text(); let data; try{data=JSON.parse(text)}catch(e){throw new Error("Apps Script response bukan JSON")}
-        if(!data.ok)throw new Error(data.error||"Apps Script menolak sync");
-        sent=true;
-      }catch(e){
-        if(navigator.sendBeacon) sent=navigator.sendBeacon(C.gasUrl,new Blob([body],{type:"text/plain;charset=utf-8"}));
-        if(!sent) throw e;
-      }
-      // Do not make the sync fail just because Android WebView cannot
-      // execute the Apps Script JSONP response after Google's redirect.
-      // The POST above is the actual write operation and has already been
-      // accepted when we reach this point. A separate Pull/Refresh can
-      // still verify/read CENTRAL when the WebView transport permits it.
-      return {
-        ok:true,
-        visitorCount:Array.isArray(window.HVSS_DB?.visitors)?window.HVSS_DB.visitors.length:0,
-        keyCount:Array.isArray(window.HVSS_DB?.keys)?window.HVSS_DB.keys.length:0,
-        message:"CENTRAL SYNC SENT"
-      };'''
-new2='''      let sent=false;
-      if(window.AndroidCentral){
-        const data=await nativeCentralCall("post",body,30000);
-        if(!data||!data.ok)throw new Error((data&&data.error)||"Apps Script menolak sync");
-        sent=true;
-      }else{
-        try{
-          const r=await fetch(C.gasUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
-          const text=await r.text(); let data; try{data=JSON.parse(text)}catch(e){throw new Error("Apps Script response bukan JSON")}
-          if(!data.ok)throw new Error(data.error||"Apps Script menolak sync");
-          sent=true;
-        }catch(e){
-          if(navigator.sendBeacon) sent=navigator.sendBeacon(C.gasUrl,new Blob([body],{type:"text/plain;charset=utf-8"}));
-          if(!sent) throw e;
-        }
-      }
-      return {
-        ok:true,
-        visitorCount:Array.isArray(window.HVSS_DB?.visitors)?window.HVSS_DB.visitors.length:0,
-        keyCount:Array.isArray(window.HVSS_DB?.keys)?window.HVSS_DB.keys.length:0,
-        message:"CENTRAL SYNC SENT"
-      };'''
-assert old2 in s, 'sync anchor not found'; s=s.replace(old2,new2,1)
-old3='''  window.HVSS_RESET_CENTRAL=async function(){
-    const body=JSON.stringify({action:"resetCentral",spreadsheetId:C.spreadsheetId,visitorSheet:C.visitorSheet,keySheet:C.keySheet});
-    let done=false;
-    try{const r=await fetch(C.gasUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});const d=await r.json();if(!d.ok)throw new Error(d.error||"Reset ditolak");done=true}catch(e){if(navigator.sendBeacon)done=navigator.sendBeacon(C.gasUrl,new Blob([body],{type:"text/plain;charset=utf-8"}));if(!done)throw e}
-    return window.HVSS_RESET_DEVICE_TO_CENTRAL();
-  };'''
-new3='''  window.HVSS_RESET_CENTRAL=async function(){
-    const body=JSON.stringify({action:"resetCentral",spreadsheetId:C.spreadsheetId,visitorSheet:C.visitorSheet,keySheet:C.keySheet});
-    let done=false;
-    if(window.AndroidCentral){
-      const d=await nativeCentralCall("post",body,30000);
-      if(!d||!d.ok)throw new Error((d&&d.error)||"Reset ditolak");
-      done=true;
-    }else{
-      try{const r=await fetch(C.gasUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});const d=await r.json();if(!d.ok)throw new Error(d.error||"Reset ditolak");done=true}catch(e){if(navigator.sendBeacon)done=navigator.sendBeacon(C.gasUrl,new Blob([body],{type:"text/plain;charset=utf-8"}));if(!done)throw e}
+
+p = Path('hvss2.html')
+s = p.read_text(encoding='utf-8')
+
+# The native transport patch is already present in the current HVSS2 baseline.
+# Keep it intact and repair only the cross-IIFE UI refresh bridge.
+if 'function nativeCentralCall(' not in s or 'window.__HVSS_NATIVE_CENTRAL_RESOLVE' not in s:
+    raise SystemExit('Expected native CENTRAL transport patch is missing; refusing to modify an unexpected HVSS2 baseline')
+
+# Main HVSS functions live inside the application's own IIFE. The CENTRAL
+# runtime lives in a separate IIFE, so direct references such as renderAll()
+# and renderKeyLog() are out of scope. Export the required functions once.
+render_anchor = 'function renderAll(){renderDashboard();renderVisitors();renderKeys();renderReport();renderHistory()}'
+render_export = render_anchor + '\nwindow.HVSS_RENDER_ALL=renderAll;\nwindow.HVSS_RENDER_KEY_LOG=renderKeyLog;\nwindow.HVSS_ADD_BULK_KEY_ROW=addBulkKeyRow;'
+if 'window.HVSS_RENDER_ALL=renderAll;' not in s:
+    if render_anchor not in s:
+        raise SystemExit('renderAll anchor not found; refusing to guess')
+    s = s.replace(render_anchor, render_export, 1)
+
+# Replace the broken cross-IIFE references inside applyCentral().
+old_ui = '''    if(typeof renderAll==='function') if(document.getElementById("bkRows")&&!document.querySelector("#bkRows .key-bulk-row"))addBulkKeyRow();
+renderAll();
+    if(typeof renderKeyLog==='function')renderKeyLog();'''
+new_ui = '''    if(typeof window.HVSS_ADD_BULK_KEY_ROW==='function'){
+      if(document.getElementById("bkRows")&&!document.querySelector("#bkRows .key-bulk-row"))window.HVSS_ADD_BULK_KEY_ROW();
     }
-    return window.HVSS_RESET_DEVICE_TO_CENTRAL();
-  };'''
-assert old3 in s, 'reset anchor not found'; s=s.replace(old3,new3,1)
-p.write_text(s,encoding='utf-8'); print('HVSS2 native CENTRAL patch applied')
+    if(typeof window.HVSS_RENDER_ALL==='function')window.HVSS_RENDER_ALL();
+    if(typeof window.HVSS_RENDER_KEY_LOG==='function')window.HVSS_RENDER_KEY_LOG();'''
+if old_ui in s:
+    s = s.replace(old_ui, new_ui, 1)
+elif new_ui not in s:
+    raise SystemExit('CENTRAL UI refresh anchor not found; refusing to guess')
+
+p.write_text(s, encoding='utf-8')
+print('HVSS2 native CENTRAL transport + UI scope repair applied')
