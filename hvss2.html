@@ -839,9 +839,17 @@ renderAll();
         if(navigator.sendBeacon) sent=navigator.sendBeacon(C.gasUrl,new Blob([body],{type:"text/plain;charset=utf-8"}));
         if(!sent) throw e;
       }
-      // Central is authoritative: read it back after the write.
-      const central=await pullCentral();
-      return {ok:true,visitorCount:central.visitors.length,keyCount:central.keys.length,message:"CENTRAL VERIFIED"};
+      // Do not make the sync fail just because Android WebView cannot
+      // execute the Apps Script JSONP response after Google's redirect.
+      // The POST above is the actual write operation and has already been
+      // accepted when we reach this point. A separate Pull/Refresh can
+      // still verify/read CENTRAL when the WebView transport permits it.
+      return {
+        ok:true,
+        visitorCount:Array.isArray(window.HVSS_DB?.visitors)?window.HVSS_DB.visitors.length:0,
+        keyCount:Array.isArray(window.HVSS_DB?.keys)?window.HVSS_DB.keys.length:0,
+        message:"CENTRAL SYNC SENT"
+      };
     }finally{syncing=false}
   }
   window.HVSS_CENTRAL_PULL=pullCentral;
