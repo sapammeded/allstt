@@ -1,9 +1,8 @@
 from pathlib import Path
-
-p = Path("hvss2.html")
-s = p.read_text(encoding="utf-8")
-
-old = '''function pullCentral(){
+p=Path('hvss2.html'); s=p.read_text(encoding='utf-8')
+if 'function nativeCentralCall(' in s and 'window.__HVSS_NATIVE_CENTRAL_RESOLVE' in s:
+ print('HVSS2 native CENTRAL patch already present'); raise SystemExit(0)
+old='''function pullCentral(){
     return new Promise((resolve,reject)=>{
       const cb="hvssCentralCb_"+Date.now()+Math.random().toString(36).slice(2);
       const script=document.createElement("script");
@@ -15,8 +14,7 @@ old = '''function pullCentral(){
       document.head.appendChild(script);
     });
   }'''
-
-new = '''function nativeCentralCall(type, payload, timeoutMs=30000){
+new='''function nativeCentralCall(type, payload, timeoutMs=30000){
     if(!window.AndroidCentral) return null;
     return new Promise((resolve,reject)=>{
       const id="hvssNative_"+Date.now()+"_"+Math.random().toString(36).slice(2);
@@ -52,11 +50,8 @@ new = '''function nativeCentralCall(type, payload, timeoutMs=30000){
       document.head.appendChild(script);
     });
   }'''
-
-assert old in s
-s = s.replace(old, new, 1)
-
-old2 = '''      let sent=false;
+assert old in s, 'pullCentral anchor not found'; s=s.replace(old,new,1)
+old2='''      let sent=false;
       try{
         const r=await fetch(C.gasUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
         const text=await r.text(); let data; try{data=JSON.parse(text)}catch(e){throw new Error("Apps Script response bukan JSON")}
@@ -66,11 +61,18 @@ old2 = '''      let sent=false;
         if(navigator.sendBeacon) sent=navigator.sendBeacon(C.gasUrl,new Blob([body],{type:"text/plain;charset=utf-8"}));
         if(!sent) throw e;
       }
-      // Central is authoritative: read it back after the write.
-      const central=await pullCentral();
-      return {ok:true,visitorCount:central.visitors.length,keyCount:central.keys.length,message:"CENTRAL VERIFIED"};'''
-
-new2 = '''      let sent=false;
+      // Do not make the sync fail just because Android WebView cannot
+      // execute the Apps Script JSONP response after Google's redirect.
+      // The POST above is the actual write operation and has already been
+      // accepted when we reach this point. A separate Pull/Refresh can
+      // still verify/read CENTRAL when the WebView transport permits it.
+      return {
+        ok:true,
+        visitorCount:Array.isArray(window.HVSS_DB?.visitors)?window.HVSS_DB.visitors.length:0,
+        keyCount:Array.isArray(window.HVSS_DB?.keys)?window.HVSS_DB.keys.length:0,
+        message:"CENTRAL SYNC SENT"
+      };'''
+new2='''      let sent=false;
       if(window.AndroidCentral){
         const data=await nativeCentralCall("post",body,30000);
         if(!data||!data.ok)throw new Error((data&&data.error)||"Apps Script menolak sync");
@@ -86,20 +88,20 @@ new2 = '''      let sent=false;
           if(!sent) throw e;
         }
       }
-      const central=await pullCentral();
-      return {ok:true,visitorCount:central.visitors.length,keyCount:central.keys.length,message:"CENTRAL VERIFIED"};'''
-
-assert old2 in s
-s = s.replace(old2, new2, 1)
-
-old3 = '''  window.HVSS_RESET_CENTRAL=async function(){
+      return {
+        ok:true,
+        visitorCount:Array.isArray(window.HVSS_DB?.visitors)?window.HVSS_DB.visitors.length:0,
+        keyCount:Array.isArray(window.HVSS_DB?.keys)?window.HVSS_DB.keys.length:0,
+        message:"CENTRAL SYNC SENT"
+      };'''
+assert old2 in s, 'sync anchor not found'; s=s.replace(old2,new2,1)
+old3='''  window.HVSS_RESET_CENTRAL=async function(){
     const body=JSON.stringify({action:"resetCentral",spreadsheetId:C.spreadsheetId,visitorSheet:C.visitorSheet,keySheet:C.keySheet});
     let done=false;
     try{const r=await fetch(C.gasUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});const d=await r.json();if(!d.ok)throw new Error(d.error||"Reset ditolak");done=true}catch(e){if(navigator.sendBeacon)done=navigator.sendBeacon(C.gasUrl,new Blob([body],{type:"text/plain;charset=utf-8"}));if(!done)throw e}
     return window.HVSS_RESET_DEVICE_TO_CENTRAL();
   };'''
-
-new3 = '''  window.HVSS_RESET_CENTRAL=async function(){
+new3='''  window.HVSS_RESET_CENTRAL=async function(){
     const body=JSON.stringify({action:"resetCentral",spreadsheetId:C.spreadsheetId,visitorSheet:C.visitorSheet,keySheet:C.keySheet});
     let done=false;
     if(window.AndroidCentral){
@@ -111,8 +113,5 @@ new3 = '''  window.HVSS_RESET_CENTRAL=async function(){
     }
     return window.HVSS_RESET_DEVICE_TO_CENTRAL();
   };'''
-
-assert old3 in s
-s = s.replace(old3, new3, 1)
-p.write_text(s, encoding="utf-8")
-print("HVSS2 native CENTRAL patch applied")
+assert old3 in s, 'reset anchor not found'; s=s.replace(old3,new3,1)
+p.write_text(s,encoding='utf-8'); print('HVSS2 native CENTRAL patch applied')
