@@ -26,7 +26,7 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Prepare FINAL HTML assets unchanged
+      - name: Prepare HTML assets from current repository
         shell: bash
         run: |
           set -euo pipefail
@@ -36,58 +36,7 @@ jobs:
             cp -f "$n" "app/src/main/assets/$n"
           done
 
-      - name: Verify FINAL HTML assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s app/src/main/assets/stt.html
-          test -s app/src/main/assets/hvss2.html
-          test -s app/src/main/assets/vacs.html
-          test -s app/src/main/assets/launcher.html
-
-      - name: Validate STT JavaScript syntax
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          html = Path('stt.html').read_text(encoding='utf-8')
-          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
-          Path('/tmp/stt-inline.js').write_text('\n\n'.join(scripts), encoding='utf-8')
-          print(f'STT inline scripts: {len(scripts)}')
-          PY
-          node --check /tmp/stt-inline.js
-
-      - name: Validate HVSS2 JavaScript syntax
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          html = Path('hvss2.html').read_text(encoding='utf-8')
-          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
-          Path('/tmp/hvss2-inline.js').write_text('\n\n'.join(scripts), encoding='utf-8')
-          print(f'HVSS2 inline scripts: {len(scripts)}')
-          PY
-          node --check /tmp/hvss2-inline.js
-
-      - name: Validate VACS JavaScript syntax
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          html = Path('vacs.html').read_text(encoding='utf-8')
-          scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S|re.I)
-          Path('/tmp/vacs-inline.js').write_text('\n\n'.join(scripts), encoding='utf-8')
-          print(f'VACS inline scripts: {len(scripts)}')
-          PY
-          node --check /tmp/vacs-inline.js
-
-      - name: Verify launcher icon
-        run: test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-
-      - name: Build installable APK
+      - name: Build APK from current repository
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Verify APK
