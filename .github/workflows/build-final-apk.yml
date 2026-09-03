@@ -26,6 +26,28 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Update HVSS2 CENTRAL Web App URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('hvss2.html')
+          s = p.read_text(encoding='utf-8')
+          old = 'https://script.google.com/macros/s/AKfycbwNvGUEqrVBqHa3vkKh20UWEuTAfhgsM4cXznk6sxeUxQARTs5xcoJwzuDwmI61rzwrVg/exec'
+          new = 'https://script.google.com/macros/s/AKfycbxsXmQDGTgd1bJwZHyR7QRpuAbDv6-GoRGpm9ypHqp0S2StWhz4QntHqI89oMAcrL0dIg/exec'
+          count = s.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected exactly 1 old HVSS2 GAS URL, found {count}')
+          p.write_text(s.replace(old, new), encoding='utf-8')
+          print('HVSS2 GAS URL updated to new deployment')
+          PY
+          grep -F 'AKfycbxsXmQDGTgd1bJwZHyR7QRpuAbDv6-GoRGpm9ypHqp0S2StWhz4QntHqI89oMAcrL0dIg/exec' hvss2.html
+          if grep -Fq 'AKfycbwNvGUEqrVBqHa3vkKh20UWEuTAfhgsM4cXznk6sxeUxQARTs5xcoJwzuDwmI61rzwrVg/exec' hvss2.html; then
+            echo 'ERROR: old HVSS2 GAS URL still present'
+            exit 1
+          fi
+
       - name: Prepare FINAL HTML assets unchanged
         shell: bash
         run: |
@@ -44,6 +66,7 @@ jobs:
           test -s app/src/main/assets/hvss2.html
           test -s app/src/main/assets/vacs.html
           test -s app/src/main/assets/launcher.html
+          grep -F 'AKfycbxsXmQDGTgd1bJwZHyR7QRpuAbDv6-GoRGpm9ypHqp0S2StWhz4QntHqI89oMAcrL0dIg/exec' app/src/main/assets/hvss2.html
 
       - name: Validate STT JavaScript syntax
         shell: bash
