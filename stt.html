@@ -6,6 +6,7 @@
 <title>FORM PATROLI PROFESIONAL SECURITY — MASTER</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 :root {
@@ -1855,7 +1856,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbwITWFhy7tfcnWRb-ixJyl2EaReAo2-bw6-mix8xmLJJ5Qm0d6apvhTrZtFFxwGvxFS/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxYhq7oe-0CG6d2t5Bbad4LyNTwekjaEPsDJe6IPWO45Z71FRkKWkqp9Em--2yfGZc/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -4206,49 +4207,54 @@ function setupSuperCleanup() {
   // ==================== WORD EXPORT — PHOTO + DESCRIPTION REPORT ====================
   document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
     try{
+      signatureData = signatureData || localStorage.getItem('patrol_signature_v1') || null;
+      signatureName = signatureName || localStorage.getItem('patrol_signature_name') || localStorage.getItem('patrol_signature_name_v1') || '';
+      if(!window.JSZip) throw new Error('Mesin Word DOCX belum siap. Pastikan internet aktif sekali untuk memuat JSZip.');
       const areaEntries=Object.entries(patrolData||{}).filter(([,a])=>!!a); const areas=areaEntries.map(([,a])=>a);
       const totalPhotos=areas.reduce((n,a)=>n+(Array.isArray(a.photos)?a.photos.length:0),0);
       if(!areas.length) throw new Error('Belum ada area patroli.');
       if(!totalPhotos) throw new Error('Belum ada foto evidence patroli.');
-      showOverlay('Membuat Word Security Report...'); setOverlayProgress(5);
-
+      showOverlay('Membuat Word Security Report (.DOCX)...'); setOverlayProgress(5);
       const petugas=(document.getElementById('petugasName')?.value||'Petugas').trim();
       const tanggal=document.getElementById('tanggal')?.value||new Date().toISOString().slice(0,10);
       const jam=document.getElementById('jam')?.value||new Date().toTimeString().slice(0,5);
       const generated=new Date().toLocaleString('id-ID');
       const safe=v=>String(v??'').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80);
-      const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-      async function photoDataWord(p){
-        if(p && typeof p==='object' && p.ref){ const b=await idbGet(STORE_BLOBS,p.ref); return b?await blobToBase64(b):null; }
-        return typeof p==='string'?p:null;
-      }
-      const logoL=logoData||''; const logoR=logoDataRight||'';
-      let html=`<!doctype html><html><head><meta charset="utf-8"><title>Laporan Patroli Security</title><style>
-      body{font-family:Arial,Helvetica,sans-serif;color:#2a303a;margin:24px;font-size:10pt} h1,h2,h3{margin:0}.letterhead{border-bottom:0;margin-bottom:4px}.letterhead table{width:100%;border-collapse:collapse}.lh-logo{width:22%;text-align:center;vertical-align:middle}.lh-logo img{width:82px;height:82px;object-fit:contain}.lh-center{text-align:center;vertical-align:middle;font-size:9pt;line-height:1.35}.lh-center .company{font-size:16pt;font-weight:900;color:#144891}.docline{font-weight:800;color:#144891;margin-top:5px}.rule{border-top:2px solid #144891;margin:6px 0 18px}.meta{background:#f8fafc;padding:12px;border:1px solid #e2e8f0;margin:12px 0 18px}.area{page-break-before:always}.area-title{font-size:18pt;color:#144891;font-weight:800;border-bottom:2px solid #144891;padding-bottom:6px;margin-bottom:12px}.finding{background:#fee2e2;border:3px solid #dc2626;padding:10px;margin:10px 0;border-radius:7px}.finding-title{font-size:14pt;font-weight:900;color:#991b1b}.finding-body{font-size:13pt;font-weight:900;white-space:pre-wrap;margin-top:6px}.finding-meta{font-size:8pt;color:#991b1b;font-weight:700;margin-top:5px}.finding-photo{width:260px;max-width:100%;max-height:240px;object-fit:contain;margin:7px 7px 0 0;border:1px solid #dc2626}.note{margin:10px 0;padding:10px;background:#f8fafc;border-left:4px solid #144891;white-space:pre-wrap}.evidence{border:1px solid #dbe3ee;margin:12px 0;padding:10px;page-break-inside:avoid}.evidence table{width:100%;border-collapse:collapse}.evidence td{vertical-align:top}.photo{width:300px;max-width:100%;max-height:290px;object-fit:contain}.desc{padding-left:14px;font-size:11pt;line-height:1.45;white-space:pre-wrap}.signature{margin-top:30px;border-top:1px solid #d7dce4;padding-top:14px;text-align:right}.signature img{width:140px;height:62px;object-fit:contain}.verified{color:#00732d;font-size:8pt;font-weight:700}.footer{margin-top:30px;border-top:1px solid #d7dce4;padding-top:8px;font-size:8pt;color:#69707a}</style></head><body>`;
-      html+=`<div class="letterhead"><table><tr><td class="lh-logo"><img src="${logoL}"></td><td class="lh-center"><div class="company">${esc(companyName||'NAMA PERUSAHAAN')}</div><div>${esc(companyAddress||'ALAMAT PERUSAHAAN')}</div><div class="docline">SECURITY PATROL &amp; INCIDENT DOCUMENTATION</div></td><td class="lh-logo"><img src="${logoR}"></td></tr></table></div><div class="rule"></div><h1 style="text-align:center">LAPORAN PATROLI SECURITY</h1><div class="meta"><b>Petugas:</b> ${esc(petugas)} &nbsp;&nbsp; <b>Tanggal:</b> ${esc(tanggal)} &nbsp;&nbsp; <b>Jam:</b> ${esc(jam)}<br><span>Generated: ${esc(generated)}</span></div>`;
-      if(officerPhotoDataUrl) html+=`<img src="${officerPhotoDataUrl}" style="max-width:420px;max-height:480px;object-fit:contain;border:1px solid #d7dce4"><p><b>FOTO PETUGAS SECURITY</b></p>`;
-      html+=`</div>`;
+      const xml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+      const escText=v=>String(v??'').replace(/\r/g,'').split('\n');
+      async function photoDataWord(p){ if(p&&typeof p==='object'&&p.ref){const b=await idbGet(STORE_BLOBS,p.ref);return b?await blobToBase64(b):null;} return typeof p==='string'?p:null; }
+      const zip=new JSZip(); const media=[]; let rid=1;
+      function ridFor(data,mime){ if(!data)return null; const id='rIdImg'+(rid++); let raw=data; let ext='png'; const m=String(mime||((String(data).match(/^data:([^;]+);/)||[])[1])||'image/png').toLowerCase(); if(m.includes('jpeg')||m.includes('jpg'))ext='jpg'; else if(m.includes('webp'))ext='png'; else if(m.includes('gif'))ext='gif'; if(raw.includes(','))raw=raw.split(',').slice(1).join(','); media.push({id,path:`word/media/image${media.length+1}.${ext}`,raw,mime:m,ext}); return id; }
+      function pText(text,opt={}){const bold=opt.bold?' <w:b/>':'';const size=opt.size?`<w:sz w:val="${opt.size*2}"/><w:szCs w:val="${opt.size*2}"/>`:'';const color=opt.color?`<w:color w:val="${opt.color}"/>`:'';const shade=opt.shade?`<w:shd w:fill="${opt.shade}"/>`:'';return `<w:p><w:pPr>${opt.align?`<w:jc w:val="${opt.align}"/>`:''}${opt.before?`<w:spacing w:before="${opt.before}"/>`:''}${opt.after?`<w:spacing w:after="${opt.after}"/>`:''}</w:pPr><w:r><w:rPr>${bold}${size}${color}</w:rPr><w:t xml:space="preserve">${xml(text)}</w:t></w:r></w:p>`}
+      function pLines(lines,opt={}){return lines.map((x,i)=>pText(x,{...opt,after:i===lines.length-1?(opt.after??80):0})).join('')}
+      function imageRun(data,wCm,hCm){const id=ridFor(data);if(!id)return '';const cx=Math.round(wCm*360000),cy=Math.round(hCm*360000);return `<w:r><w:rPr></w:rPr><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${rid++}" name="STT Image"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="image"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`}
+      function pImage(data,w,h,align='center'){return `<w:p><w:pPr><w:jc w:val="${align}"/></w:pPr>${imageRun(data,w,h)}</w:p>`}
+      function cell(content,width,shade){return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${shade?`<w:shd w:fill="${shade}"/>`:''}</w:tcPr>${content}</w:tc>`}
+      function table(rows,widths){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DCE4"/><w:left w:val="single" w:sz="4" w:color="D7DCE4"/><w:bottom w:val="single" w:sz="4" w:color="D7DCE4"/><w:right w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideH w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideV w:val="single" w:sz="4" w:color="D7DCE4"/></w:tblBorders></w:tblPr>${rows.map(r=>`<w:tr>${r.map((c,i)=>cell(c,widths[i]||3120)).join('')}</w:tr>`).join('')}</w:tbl>`}
+      function headerBlock(){const l=logoData||'',r=logoDataRight||'';const lc=l?pImage(l,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9});const rc=r?pImage(r,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9});const center=pText(companyName||'NAMA PERUSAHAAN',{align:'center',bold:true,size:16,color:'144891',after:30})+pText(companyAddress||'ALAMAT PERUSAHAAN',{align:'center',size:9,after:30})+pText('SECURITY PATROL & INCIDENT DOCUMENTATION',{align:'center',bold:true,size:9,color:'144891',after:40});return table([[lc,center,rc]],[1800,5760,1800])+pText('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',{align:'center',size:8,color:'144891',after:100});}
+      let body=headerBlock()+pText('LAPORAN PATROLI SECURITY',{align:'center',bold:true,size:18,color:'144891',after:120});
+      body+=table([[pText(`Petugas: ${petugas}`,{bold:true,size:10}),pText(`Tanggal: ${tanggal}`,{bold:true,size:10}),pText(`Jam: ${jam}`,{bold:true,size:10})],[pText(`Generated: ${generated}`,{size:9}) ,pText('STT SECURITY REPORT',{bold:true,size:9,color:'144891'}),pText('CENTRAL FINDING NOTES',{bold:true,size:9,color:'144891'})]],[3120,3120,3120]);
+      if(officerPhotoDataUrl) body+=pText('FOTO PETUGAS SECURITY',{align:'center',bold:true,size:10,after:40})+pImage(officerPhotoDataUrl,6.0,6.5)+pText('',{after:100});
       let done=0;
       for(let ai=0;ai<areas.length;ai++){
-        const area=areas[ai]||{}; const photos=Array.isArray(area.photos)?area.photos:[];
-        html+=`<div class="area"><div class="letterhead"><table><tr><td class="lh-logo"><img src="${logoL}"></td><td class="lh-center"><div class="company">${esc(companyName||'NAMA PERUSAHAAN')}</div><div>${esc(companyAddress||'ALAMAT PERUSAHAAN')}</div><div class="docline">SECURITY PATROL &amp; INCIDENT DOCUMENTATION</div></td><td class="lh-logo"><img src="${logoR}"></td></tr></table></div><div class="rule"></div><div class="area-title">AREA ${ai+1}: ${esc(area.name||`Area ${ai+1}`)}</div>`;
+        const area=areas[ai]||{}; const photos=Array.isArray(area.photos)?area.photos:[]; body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+headerBlock()+pText(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`}`,{bold:true,size:18,color:'144891',after:100});
         const af=getActiveFindingNotesForArea(area.name||`Area ${ai+1}`,areaEntries[ai]?.[0]);
-        if(af.length){ html+=`<div class="finding"><div class="finding-title">⚠ FINDING NOTES AKTIF (${af.length})</div>`+af.map(f=>`<div class="finding-body">${esc(f.content||'')}${Array.isArray(f.photos)&&f.photos.length?f.photos.map(p=>p?.data?`<img class="finding-photo" src="${p.data}">`: '').join(''):''}<div class="finding-meta">Status: ${esc(String(f.status||'open').toUpperCase().replace('_',' '))} • Ditemukan: ${esc(f.foundAt||'-')} • Petugas: ${esc(f.foundBy||'-')}</div></div>`).join('')+`</div>`; }
-        const notes=String(area.notes||area.globalDescription||'').trim(); if(notes) html+=`<div class="note"><b>CATATAN AREA</b><br>${esc(notes)}</div>`;
-        for(let i=0;i<photos.length;i++){ const src=await photoDataWord(photos[i]); const desc=String(area.descriptions?.[i]||DEFAULT_PATROL_DESCRIPTION).trim()||DEFAULT_PATROL_DESCRIPTION; html+=`<div class="evidence"><table><tr><td style="width:48%">${src?`<img class="photo" src="${src}">`:'Foto tidak tersedia'}</td><td class="desc"><b>Foto ${i+1}</b><br><br>${esc(desc)}</td></tr></table></div>`; done++; setOverlayProgress(5+Math.round(done/Math.max(1,totalPhotos)*85)); }
-        if(!photos.length) html+=`<p>Tidak ada foto evidence pada area ini.</p>`;
-        html+=`</div>`;
+        if(af.length){body+=pText(`⚠ FINDING NOTES AKTIF (${af.length})`,{bold:true,size:14,color:'FFFFFF',shade:'DC2626',after:60});for(const f of af){body+=pLines(escText(f.content||''),{bold:true,size:12,color:'991B1B',after:40});for(const ph of (Array.isArray(f.photos)?f.photos:[])){if(ph?.data)body+=pImage(ph.data,7.0,5.0)}body+=pText(`Status: ${String(f.status||'open').toUpperCase().replace('_',' ')} • Ditemukan: ${f.foundAt||'-'} • Petugas: ${f.foundBy||'-'}`,{bold:true,size:8,color:'991B1B',after:80});}}
+        const notes=String(area.notes||area.globalDescription||'').trim();if(notes)body+=pText('CATATAN AREA',{bold:true,size:10,color:'144891',after:30})+pLines(escText(notes),{size:10,after:80});
+        for(let i=0;i<photos.length;i++){const src=await photoDataWord(photos[i]);const desc=String(area.descriptions?.[i]||DEFAULT_PATROL_DESCRIPTION).trim()||DEFAULT_PATROL_DESCRIPTION;const left=src?pImage(src,7.2,6.8):pText('Foto tidak tersedia',{align:'center',size:10});const right=pText(`Foto ${i+1}`,{bold:true,size:11,color:'144891',after:50})+pLines(escText(desc),{size:10,after:20});body+=table([[left,right]],[4680,4680])+pText('',{after:70});done++;setOverlayProgress(5+Math.round(done/Math.max(1,totalPhotos)*80));}
+        if(!photos.length)body+=pText('Tidak ada foto evidence pada area ini.',{size:10,after:80});
       }
-      html+=`<div class="signature"><div><b>TANDA TANGAN DAN VERIFIKASI</b></div>${signatureData?`<img src="${signatureData}">`:''}<div>${esc(officerName||petugas)}</div><div class="verified">Tanda Tangan Digital Terverifikasi</div></div><div class="footer">Laporan dibuat oleh STT • ${esc(generated)}</div></body></html>`;
-      const blob=new Blob(['\ufeff',html],{type:'application/msword'});
-      const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);
-      const rawShift=String(document.getElementById('shift')?.value||'').trim(); const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';
-      const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.doc`;
-      const saved=await saveBlobToPreferredFolder(blob,filename);
-      if(!saved){ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500); }
-      setOverlayProgress(100); hideOverlay();
-      alert(`✅ WORD SECURITY REPORT SELESAI\n\n📥 ${filename}`);
-    }catch(e){ hideOverlay(); console.error('[WORD]',e); alert('❌ Gagal membuat Word: '+(e?.message||e)); }
+      body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+headerBlock()+pText('TANDA TANGAN DAN VERIFIKASI',{bold:true,size:12,color:'144891',after:70});if(signatureData)body+=pImage(signatureData,5.0,2.2);body+=pText(signatureName||petugas,{bold:true,size:11,after:30})+pText('Tanda Tangan Digital Terverifikasi',{bold:true,size:9,color:'00732D',after:100})+pText(`Laporan dibuat oleh STT • ${generated}`,{size:8,color:'69707A'});
+      const sectPr=`<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr>`;
+      const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sectPr}</w:body></w:document>`;
+      zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`);
+      zip.folder('_rels').file('.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+      const wr=zip.folder('word').folder('_rels');let rel=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
+      media.forEach(m=>rel+=`<Relationship Id="${m.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.path.split('/').pop()}"/>`);rel+='</Relationships>';wr.file('document.xml.rels',rel);
+      zip.folder('word').file('document.xml',documentXml);zip.folder('word').file('styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80"/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>`);
+      for(const m of media){let bytes=Uint8Array.from(atob(m.raw),c=>c.charCodeAt(0));zip.folder('word').folder('media').file(m.path.split('/').pop(),bytes);}
+      setOverlayProgress(95);const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'});const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);const rawShift=String(document.getElementById('shift')?.value||'').trim();const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.docx`;const saved=await saveBlobToPreferredFolder(blob,filename);if(!saved){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}setOverlayProgress(100);hideOverlay();alert(`✅ WORD SECURITY REPORT DOCX SELESAI\n\n📥 ${filename}\n\nEditable: teks dan gambar dapat diedit/diganti di Microsoft Word.`);
+    }catch(e){hideOverlay();console.error('[WORD DOCX]',e);alert('❌ Gagal membuat Word DOCX: '+(e?.message||e));}
   });
 
   // ==================== EVENT LISTENERS ====================
@@ -4384,6 +4390,20 @@ window.addEventListener('beforeunload', function() {
         const target=item.dataset.target;
         const tab=item.dataset.tab;
         const action=item.dataset.action;
+
+        if(action==='finding-notes'){
+          const findingEl=document.getElementById('findingNotesSection');
+          if(findingEl){
+            document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));
+            findingEl.classList.add('menu-section-open');
+            sideNav.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+            item.classList.add('active');
+            closeMenu();
+            try{ if(window.STT_FINDING_NOTES && typeof window.STT_FINDING_NOTES.sync==='function') window.STT_FINDING_NOTES.sync(); }catch(e){ console.warn('Finding Notes sync:',e); }
+            setTimeout(()=>findingEl.scrollIntoView({behavior:'smooth',block:'start'}),60);
+          }
+          return;
+        }
 
         if(action==='admin' || action==='admin-company'){
           if(!adminUnlocked){
@@ -4880,6 +4900,7 @@ function setMsg(t,good=false){const e=$('fnSyncStatus');if(e){e.textContent=t;e.
 function areaOptions(){const sel=$('fnAreaInput');if(!sel)return;const old=sel.value;const areas=Object.entries(patrolData||{});sel.innerHTML='<option value="">Pilih area...</option>'+areas.map(([k,a])=>`<option value="${esc(k)}">${esc(a?.name||('Area '+(parseInt(k)+1)))}</option>`).join('');if(areas.some(([k])=>String(k)===String(old)))sel.value=old}
 async function get(action,extra={}){if(!API)throw new Error('Central endpoint belum dikonfigurasi.');const q=new URLSearchParams({action,deviceId:DEVICE,...extra});const r=await fetch(API+'?'+q.toString(),{method:'GET',cache:'no-store'});if(!r.ok)throw new Error('Central HTTP '+r.status);const j=await r.json();if(!j.ok)throw new Error(j.error||'Central menolak permintaan.');return j}
 async function post(payload){if(!API)throw new Error('Central endpoint belum dikonfigurasi.');const r=await fetch(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...payload,deviceId:DEVICE})});return {ok:r.type==='opaque'||r.ok}}
+async function ensureCentralSetup(){if(!API)return;try{await get('setup')}catch(e){console.warn('[CENTRAL setup]',e)}}
 async function sync(){setMsg('⏳ Sinkronisasi Finding Notes CENTRAL...');try{const [f,t]=await Promise.all([get('findingList'),get('templateList')]);findings=Array.isArray(f.findings)?f.findings:[];templates=Array.isArray(t.templates)?t.templates:[];saveCache();areaOptions();render();renderTemplates();setMsg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);renderAreas()}catch(e){setMsg('⚠️ Sync gagal: '+(e.message||e)+'. Cache terakhir ditampilkan.');areaOptions();render();renderTemplates();renderAreas()}}
 function renderTemplates(){const sel=$('fnTemplateSelect');if(!sel)return;sel.innerHTML='<option value="">Tanpa template</option>'+templates.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');const list=$('fnTplList');if(list)list.innerHTML=templates.length?templates.map(t=>`<div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px"><div style="font-weight:800;color:var(--primary)">${esc(t.name)}</div><div class="small" style="white-space:pre-wrap;margin-top:5px;max-height:120px;overflow:auto">${esc(t.content||'')}</div><button type="button" class="btn btn-danger fn-tpl-del" data-id="${esc(t.id)}" style="padding:8px 12px;margin-top:8px">HAPUS TEMPLATE</button></div>`).join(''):'<div class="small">Belum ada template custom.</div>';list?.querySelectorAll('.fn-tpl-del').forEach(b=>b.onclick=async()=>{if(!confirm('Hapus template ini dari CENTRAL?'))return;try{await post({action:'templateDelete',id:b.dataset.id});await new Promise(r=>setTimeout(r,800));await sync()}catch(e){alert('Gagal: '+e.message)}})}
 function findingForArea(areaKey,areaName){const ak=String(areaKey??'');const an=String(areaName||'').trim().toLowerCase();return findings.filter(f=>f&&f.status!=='fixed'&&((f.areaKey!=null&&String(f.areaKey)===ak)||(String(f.area||'').trim().toLowerCase()===an)))}
@@ -4896,7 +4917,7 @@ async function addTemplate(){const name=$('fnTplName')?.value.trim();const conte
 function openTemplates(){const m=$('fnTemplateModal');if(m)m.style.display='flex';renderTemplates()}function closeTemplates(){const m=$('fnTemplateModal');if(m)m.style.display='none'}
 function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');document.getElementById('sideNav')?.classList.remove('open');document.getElementById('navOverlay')?.classList.remove('open');document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded','false');areaOptions();sync()}
 window.STT_FINDING_NOTES={sync,open:openSection};
-document.addEventListener('DOMContentLoaded',()=>{loadCache();areaOptions();render();renderTemplates();setTimeout(sync,900);$('fnRefreshBtn')?.addEventListener('click',sync);$('fnSaveBtn')?.addEventListener('click',addFinding);$('fnTemplateBtn')?.addEventListener('click',openTemplates);$('fnTemplateClose')?.addEventListener('click',closeTemplates);$('fnTplSave')?.addEventListener('click',addTemplate);$('fnStatusFilter')?.addEventListener('change',render);$('fnPhotoInput')?.addEventListener('change',async e=>{try{selectedFindingPhotos.push(...await filesToFindingPhotos(e.target.files));renderPhotoPreview();e.target.value=''}catch(err){alert('Gagal membaca foto finding: '+(err.message||err))}});$('fnTemplateSelect')?.addEventListener('change',()=>{const t=templates.find(x=>x.id===$('fnTemplateSelect').value);if(t)$('fnContentInput').value=t.content||''});document.querySelectorAll('.nav-item[data-action="finding-notes"]').forEach(b=>b.addEventListener('click',openSection))});
+document.addEventListener('DOMContentLoaded',()=>{loadCache();areaOptions();render();renderTemplates();setTimeout(async()=>{await ensureCentralSetup();await sync()},500);$('fnRefreshBtn')?.addEventListener('click',sync);$('fnSaveBtn')?.addEventListener('click',addFinding);$('fnTemplateBtn')?.addEventListener('click',openTemplates);$('fnTemplateClose')?.addEventListener('click',closeTemplates);$('fnTplSave')?.addEventListener('click',addTemplate);$('fnStatusFilter')?.addEventListener('change',render);$('fnPhotoInput')?.addEventListener('change',async e=>{try{selectedFindingPhotos.push(...await filesToFindingPhotos(e.target.files));renderPhotoPreview();e.target.value=''}catch(err){alert('Gagal membaca foto finding: '+(err.message||err))}});$('fnTemplateSelect')?.addEventListener('change',()=>{const t=templates.find(x=>x.id===$('fnTemplateSelect').value);if(t)$('fnContentInput').value=t.content||''});document.querySelectorAll('.nav-item[data-action="finding-notes"]').forEach(b=>b.addEventListener('click',openSection))});
 })();
 </script>
 
