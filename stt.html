@@ -1261,6 +1261,7 @@ body:not(.admin-unlocked) #companySection{display:none !important;}
   <button class="nav-item" data-tab="camera"><i class="fas fa-camera"></i><span>Kamera & Area Patroli</span></button>
   <button class="nav-item" data-tab="guide"><i class="fas fa-book-open"></i><span>Panduan</span></button>
   <button class="nav-item" data-tab="cleanup"><i class="fas fa-broom"></i><span>Clean-up / Penyimpanan</span></button>
+  <button class="nav-item" data-action="finding-notes"><i class="fas fa-clipboard-check"></i><span>Finding Notes</span></button>
 
   <div class="nav-divider"></div>
   <button class="nav-item" data-target="exportSection"><i class="fas fa-file-pdf"></i><span>Export PDF</span></button>
@@ -1853,7 +1854,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxYhq7oe-0CG6d2t5Bbad4LyNTwekjaEPsDJe6IPWO45Z71FRkKWkqp9Em--2yfGZc/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyJ1CK7f-BKdFBriUUwks86SWb-uaoa0BsHL2zBhtmqEr6jgKi-i3EJe3DvIDq3IxPX/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -4700,5 +4701,113 @@ renderAreas();
   window.STT_DEVICE_ACCESS={getStatus,setStatus,allow:()=>{setStatus('allowed');unlock()},block:()=>{setStatus('blocked');gate()},getId:()=>deviceId};
 })();
 </script>
+
+<!-- ==================== CENTRAL FINDING NOTES ==================== -->
+<section id="findingNotesSection" class="card menu-only-section" style="margin-top:18px;border-left:5px solid var(--warning);">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin:0;color:var(--primary)"><i class="fas fa-clipboard-check"></i> FINDING NOTES</h2>
+      <div class="small">Central database — temuan yang sama terlihat oleh seluruh perangkat patroli.</div>
+    </div>
+    <button id="fnRefreshBtn" type="button" class="btn btn-info"><i class="fas fa-rotate"></i> SYNC CENTRAL</button>
+  </div>
+  <div id="fnSyncStatus" class="small" style="margin:10px 0;color:var(--muted)">Belum disinkronkan.</div>
+  <div class="card" style="margin-top:12px;border-left:4px solid var(--primary);background:#f8fbff">
+    <h3 style="margin:0 0 12px;color:var(--primary)"><i class="fas fa-plus-circle"></i> TEMUAN BARU</h3>
+    <div class="row">
+      <div class="col"><label>Template</label><select id="fnTemplateSelect"><option value="">Tanpa template</option></select></div>
+      <div class="col"><label>Area</label><input id="fnAreaInput" type="text" placeholder="Contoh: Lobby, Basement 1, Tower A..." /></div>
+    </div>
+    <label>Isi Finding Notes</label>
+    <textarea id="fnContentInput" style="min-height:180px" placeholder="Tulis temuan selengkap mungkin. Tidak ada batas karakter."></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button id="fnSaveBtn" type="button" class="btn btn-primary"><i class="fas fa-cloud-arrow-up"></i> SIMPAN KE CENTRAL</button>
+      <button id="fnTemplateBtn" type="button" class="btn btn-ghost"><i class="fas fa-layer-group"></i> KELOLA TEMPLATE</button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 10px;flex-wrap:wrap">
+    <h3 style="margin:0;color:var(--primary)"><i class="fas fa-list-check"></i> ACTIVE FINDINGS <span id="fnActiveCount" class="small"></span></h3>
+    <select id="fnStatusFilter" style="width:auto;min-width:160px;padding:10px 12px"><option value="active">OPEN / IN PROGRESS</option><option value="all">SEMUA</option><option value="fixed">FIXED / SELESAI</option></select>
+  </div>
+  <div id="fnList" style="display:grid;gap:12px"></div>
+</section>
+
+<div id="fnTemplateModal" style="display:none;position:fixed;inset:0;background:rgba(2,8,23,.58);z-index:2147483000;align-items:center;justify-content:center;padding:18px">
+  <div style="background:#fff;border-radius:20px;padding:22px;width:min(680px,100%);max-height:88vh;overflow:auto;box-shadow:0 20px 70px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3 style="margin:0;color:var(--primary)"><i class="fas fa-layer-group"></i> CUSTOM FINDING TEMPLATES</h3><button id="fnTemplateClose" class="btn btn-ghost" type="button">TUTUP</button></div>
+    <div class="row" style="margin-top:14px"><div class="col"><label>Nama Template</label><input id="fnTplName" type="text" placeholder="Contoh: FIRE SAFETY" /></div></div>
+    <label>Isi Template / Format Awal</label>
+    <textarea id="fnTplContent" style="min-height:180px" placeholder="Tulis format template bebas tanpa batas karakter."></textarea>
+    <button id="fnTplSave" class="btn btn-primary" type="button" style="margin-top:10px"><i class="fas fa-plus"></i> SIMPAN TEMPLATE</button>
+    <div id="fnTplList" style="display:grid;gap:8px;margin-top:16px"></div>
+  </div>
+</div>
+
+<script id="STT_CENTRAL_FINDING_NOTES_V1">
+(function(){
+'use strict';
+const API=(typeof PDF_UPLOAD_URL==='string'&&PDF_UPLOAD_URL.trim())?PDF_UPLOAD_URL.trim():'';
+const DEVICE=window.STT_DEVICE_ID||localStorage.getItem('STT_INSTALLATION_ID_V1')||'';
+const cacheKey='STT_FINDING_CACHE_V1';
+let findings=[]; let templates=[];
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function statusText(s){return s==='fixed'?'FIXED / SELESAI':s==='in_progress'?'IN PROGRESS':'OPEN'}
+function statusClass(s){return s==='fixed'?'#059669':s==='in_progress'?'#d97706':'#dc2626'}
+function loadCache(){try{const x=JSON.parse(localStorage.getItem(cacheKey)||'{}');findings=Array.isArray(x.findings)?x.findings:[];templates=Array.isArray(x.templates)?x.templates:[]}catch(e){findings=[];templates=[]}}
+function saveCache(){try{localStorage.setItem(cacheKey,JSON.stringify({findings,templates,updatedAt:Date.now()}))}catch(e){}}
+function setMsg(t,good=false){const e=$('fnSyncStatus');if(e){e.textContent=t;e.style.color=good?'#059669':'var(--muted)'}}
+async function get(action,extra={}){
+  if(!API) throw new Error('Central endpoint belum dikonfigurasi.');
+  const q=new URLSearchParams({action,deviceId:DEVICE,...extra});
+  const r=await fetch(API+'?'+q.toString(),{method:'GET',cache:'no-store'});
+  if(!r.ok) throw new Error('Central HTTP '+r.status);
+  const j=await r.json(); if(!j.ok) throw new Error(j.error||'Central menolak permintaan.'); return j;
+}
+async function post(payload){
+  if(!API) throw new Error('Central endpoint belum dikonfigurasi.');
+  const r=await fetch(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...payload,deviceId:DEVICE})});
+  return {ok:r.type==='opaque'||r.ok};
+}
+async function sync(){
+  setMsg('⏳ Mengambil Finding Notes dan template dari CENTRAL...');
+  try{
+    const [f,t]=await Promise.all([get('findingList'),get('templateList')]);
+    findings=Array.isArray(f.findings)?f.findings:[]; templates=Array.isArray(t.templates)?t.templates:[]; saveCache(); render(); renderTemplates();
+    setMsg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);
+  }catch(e){setMsg('⚠️ Sync gagal: '+(e.message||e)+'. Menampilkan cache terakhir.');render();renderTemplates()}
+}
+function renderTemplates(){
+ const sel=$('fnTemplateSelect'); if(!sel)return; sel.innerHTML='<option value="">Tanpa template</option>'+templates.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
+ const list=$('fnTplList'); if(list)list.innerHTML=templates.length?templates.map(t=>`<div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px"><div style="font-weight:800;color:var(--primary)">${esc(t.name)}</div><div class="small" style="white-space:pre-wrap;margin-top:5px;max-height:120px;overflow:auto">${esc(t.content||'')}</div><button type="button" class="btn btn-danger fn-tpl-del" data-id="${esc(t.id)}" style="padding:8px 12px;margin-top:8px">HAPUS TEMPLATE</button></div>`).join(''):'<div class="small">Belum ada template custom.</div>';
+ list?.querySelectorAll('.fn-tpl-del').forEach(b=>b.onclick=async()=>{if(!confirm('Hapus template ini dari CENTRAL?'))return;try{await post({action:'templateDelete',id:b.dataset.id});templates=templates.filter(x=>x.id!==b.dataset.id);saveCache();renderTemplates();setMsg('Template dihapus dari antrean CENTRAL. Sinkronkan untuk memastikan.')}catch(e){alert('Gagal: '+e.message)}});
+}
+function render(){
+ const filter=$('fnStatusFilter')?.value||'active'; let arr=findings.slice().sort((a,b)=>String(b.foundAt||'').localeCompare(String(a.foundAt||'')));
+ if(filter==='active')arr=arr.filter(x=>x.status!=='fixed'); if(filter==='fixed')arr=arr.filter(x=>x.status==='fixed');
+ const active=findings.filter(x=>x.status!=='fixed').length; if($('fnActiveCount'))$('fnActiveCount').textContent=`(${active} aktif / ${findings.length} total)`;
+ const list=$('fnList'); if(!list)return; list.innerHTML=arr.length?arr.map(x=>`<div style="border:1px solid #dbe3ee;border-left:6px solid ${statusClass(x.status)};border-radius:14px;padding:15px;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.06)">
+  <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div style="font-weight:900;color:var(--primary);font-size:17px">📍 ${esc(x.area||'Area tidak diisi')}</div><span style="font-weight:900;color:${statusClass(x.status)}">${statusText(x.status)}</span></div>
+  <div class="small" style="margin:5px 0 10px">Ditemukan: ${esc(x.foundAt||'-')} • Petugas: ${esc(x.foundBy||'-')} ${x.templateName?'• Template: '+esc(x.templateName):''}</div>
+  <div style="white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;border-radius:10px;padding:12px">${esc(x.content||'')}</div>
+  ${x.fixedAt?`<div class="small" style="margin-top:8px;color:#059669">✓ Diperbaiki: ${esc(x.fixedAt)} • ${esc(x.fixedBy||'-')}</div>`:''}
+  <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:11px">${x.status!=='fixed'?`<button class="btn btn-success fn-fix" data-id="${esc(x.id)}" style="padding:9px 13px">✓ MARK AS FIXED</button><button class="btn btn-warning fn-progress" data-id="${esc(x.id)}" style="padding:9px 13px">IN PROGRESS</button>`:''}<button class="btn btn-danger fn-del" data-id="${esc(x.id)}" style="padding:9px 13px">HAPUS</button></div>
+ </div>`).join(''):'<div class="small" style="padding:18px;text-align:center;background:#f8fafc;border-radius:14px">Tidak ada finding pada filter ini.</div>';
+ list.querySelectorAll('.fn-fix').forEach(b=>b.onclick=()=>changeStatus(b.dataset.id,'fixed'));
+ list.querySelectorAll('.fn-progress').forEach(b=>b.onclick=()=>changeStatus(b.dataset.id,'in_progress'));
+ list.querySelectorAll('.fn-del').forEach(b=>b.onclick=()=>removeFinding(b.dataset.id));
+}
+async function changeStatus(id,status){const x=findings.find(v=>v.id===id);if(!x)return; if(status==='fixed'&&!confirm('Tandai finding ini sebagai SUDAH DIPERBAIKI?'))return; try{await post({action:'findingUpdate',id,status,fixedBy:$('petugasName')?.value||'Petugas',fixedAt:new Date().toISOString()});x.status=status;if(status==='fixed'){x.fixedBy=$('petugasName')?.value||'Petugas';x.fixedAt=new Date().toLocaleString('id-ID')}saveCache();render();setMsg('Status diperbarui. Sync CENTRAL untuk memastikan perubahan diterima semua perangkat.',true);sync()}catch(e){alert('Gagal memperbarui: '+(e.message||e))}}
+async function removeFinding(id){if(!confirm('Hapus finding ini dari CENTRAL? Untuk audit, lebih disarankan memakai MARK AS FIXED.'))return;try{await post({action:'findingDelete',id});findings=findings.filter(x=>x.id!==id);saveCache();render();setMsg('Finding dihapus. Sync CENTRAL untuk memastikan.',true);sync()}catch(e){alert('Gagal menghapus: '+(e.message||e))}}
+async function addFinding(){const area=$('fnAreaInput')?.value.trim();const content=$('fnContentInput')?.value||'';if(!area||!content.trim()){alert('Area dan isi finding wajib diisi.');return}const sel=$('fnTemplateSelect');const t=templates.find(x=>x.id===sel?.value);const item={id:'FN-'+Date.now()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(),area,content,templateId:t?.id||'',templateName:t?.name||'',status:'open',foundBy:$('petugasName')?.value.trim()||'Petugas',foundAt:new Date().toLocaleString('id-ID'),createdAt:new Date().toISOString()};try{await post({action:'findingAdd',finding:item});findings.unshift(item);saveCache();$('fnAreaInput').value='';$('fnContentInput').value='';render();setMsg('✅ Finding disimpan dan dikirim ke CENTRAL. Sinkronkan perangkat lain untuk melihatnya.',true);setTimeout(sync,700)}catch(e){alert('Gagal menyimpan: '+(e.message||e))}}
+async function addTemplate(){const name=$('fnTplName')?.value.trim();const content=$('fnTplContent')?.value||'';if(!name){alert('Nama template wajib diisi.');return}const item={id:'TPL-'+Date.now()+'-'+Math.random().toString(36).slice(2,7).toUpperCase(),name,content,createdAt:new Date().toISOString(),createdBy:$('petugasName')?.value||'Admin'};try{await post({action:'templateUpsert',template:item});templates.push(item);saveCache();$('fnTplName').value='';$('fnTplContent').value='';renderTemplates();setMsg('Template dikirim ke CENTRAL. Sync untuk perangkat lain.',true);setTimeout(sync,700)}catch(e){alert('Gagal menyimpan template: '+(e.message||e))}}
+function open(){const m=$('fnTemplateModal');if(m)m.style.display='flex';renderTemplates()}
+function close(){const m=$('fnTemplateModal');if(m)m.style.display='none'}
+function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');document.getElementById('sideNav')?.classList.remove('open');document.getElementById('navOverlay')?.classList.remove('open');document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded','false');sync()}
+window.STT_FINDING_NOTES={sync,open:openSection};
+document.addEventListener('DOMContentLoaded',()=>{loadCache();render();renderTemplates();$('fnRefreshBtn')?.addEventListener('click',sync);$('fnSaveBtn')?.addEventListener('click',addFinding);$('fnTemplateBtn')?.addEventListener('click',open);$('fnTemplateClose')?.addEventListener('click',close);$('fnTplSave')?.addEventListener('click',addTemplate);$('fnStatusFilter')?.addEventListener('change',render);document.querySelectorAll('.nav-item[data-action="finding-notes"]').forEach(b=>b.addEventListener('click',openSection));$('fnTemplateSelect')?.addEventListener('change',()=>{const t=templates.find(x=>x.id===$('fnTemplateSelect').value);if(t)$('fnContentInput').value=t.content||''});});
+})();
+</script>
+
 </body>
 </html>
