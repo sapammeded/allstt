@@ -1856,7 +1856,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxYhq7oe-0CG6d2t5Bbad4LyNTwekjaEPsDJe6IPWO45Z71FRkKWkqp9Em--2yfGZc/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbze1E0CxAeAdbF4hZkcOclyVRRUEQj0Vgl9aeMSF-k_5avxHQxEnj2KcV9qHN2ZVH9f/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -3189,6 +3189,7 @@ function setupSuperCleanup() {
     const keys = Object.keys(patrolData);
     if(keys.length===0){ 
       container.innerHTML = '<div class="card small">Belum ada area. Klik "Tambah Area Baru (Kamera)" untuk membuat area pertama, lalu gunakan kamera HP untuk mengambil foto.</div>'; 
+      try{ window.dispatchEvent(new Event('stt-patrol-data-changed')); }catch(_e){}
       return; 
     }
     keys.forEach(k=>{
@@ -4262,23 +4263,37 @@ function setupSuperCleanup() {
       media.forEach(m=>rel+=`<Relationship Id="${m.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.path.split('/').pop()}"/>`);rel+='</Relationships>';wr.file('document.xml.rels',rel);
       zip.folder('word').file('document.xml',documentXml);zip.folder('word').file('styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80"/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>`);
       async function dataToBytes(data){
-        const str=String(data||'');
-        // Prefer fetch() for data URLs; it safely decodes percent-encoded and base64 payloads.
-        if(/^data:/i.test(str)){
-          try{const rr=await fetch(str);if(rr.ok||rr.type==='default')return new Uint8Array(await rr.arrayBuffer());}catch(_e){}
-          const comma=str.indexOf(',');
-          if(comma<0)throw new Error('Gambar memiliki data URL yang tidak valid.');
-          let raw=str.slice(comma+1).replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');
-          while(raw.length%4)raw+='=';
-          try{return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}catch(e){throw new Error('Format gambar tidak valid untuk Word DOCX.');}
+        const str=String(data||'').trim();
+        if(!str) throw new Error('Data gambar kosong.');
+        // Data/blob/http URLs are fetched as bytes. This avoids atob() on URL-encoded payloads.
+        if(/^data:/i.test(str) || /^(blob:|https?:)/i.test(str)){
+          try{
+            const rr=await fetch(str);
+            if(!rr.ok && rr.type!=='default') throw new Error('HTTP '+rr.status);
+            return new Uint8Array(await rr.arrayBuffer());
+          }catch(e){
+            if(/^data:/i.test(str)){
+              const comma=str.indexOf(',');
+              if(comma<0) throw new Error('Gambar memiliki data URL tidak valid.');
+              const head=str.slice(0,comma).toLowerCase();
+              const payload=str.slice(comma+1);
+              if(head.includes(';base64')){
+                let raw=payload.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');
+                while(raw.length%4) raw+='=';
+                try{return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}catch(_){throw new Error('Base64 gambar tidak valid.');}
+              }
+              try{
+                const decoded=decodeURIComponent(payload);
+                return new TextEncoder().encode(decoded);
+              }catch(_){throw new Error('Data gambar tidak dapat didekode.');}
+            }
+            throw new Error('Gambar tidak dapat dibaca: '+(e.message||e));
+          }
         }
-        // Fallback for raw base64 or blob/http URLs.
-        try{
-          const rr=await fetch(str);if(rr.ok||rr.type==='default')return new Uint8Array(await rr.arrayBuffer());
-        }catch(_e){}
+        // Raw base64 fallback only.
         let raw=str.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');
         while(raw.length%4)raw+='=';
-        try{return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}catch(e){throw new Error('Data gambar tidak valid atau rusak.');}
+        try{return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}catch(e){throw new Error('Data gambar bukan Base64 yang valid.');}
       }
       for(const m of media){const bytes=await dataToBytes(m.raw);zip.folder('word').folder('media').file(m.path.split('/').pop(),bytes);}
       setOverlayProgress(95);const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'});const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);const rawShift=String(document.getElementById('shift')?.value||'').trim();const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.docx`;const saved=await saveBlobToPreferredFolder(blob,filename);if(!saved){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}setOverlayProgress(100);hideOverlay();alert(`✅ WORD SECURITY REPORT DOCX SELESAI\n\n📥 ${filename}\n\nEditable: teks dan gambar dapat diedit/diganti di Microsoft Word.`);
@@ -4928,101 +4943,55 @@ renderAreas();
   </div>
 </div>
 
-<script id="STT_CENTRAL_FINDING_NOTES_V2">
+<script id="STT_CENTRAL_FINDING_NOTES_V4">
 (function(){
 'use strict';
 const API=(typeof PDF_UPLOAD_URL==='string'&&PDF_UPLOAD_URL.trim())?PDF_UPLOAD_URL.trim():'';
 const DEVICE=window.STT_DEVICE_ID||localStorage.getItem('STT_INSTALLATION_ID_V1')||'';
-const cacheKey='STT_FINDING_CACHE_V2'; let findings=[]; let templates=[]; let selectedFindingPhotos=[];
+const cacheKey='STT_FINDING_CACHE_V4';
+let findings=[],templates=[],selectedFindingPhotos=[];
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-function statusText(s){return s==='fixed'?'FIXED / SELESAI':s==='in_progress'?'IN PROGRESS':'OPEN'}
-function statusClass(s){return s==='fixed'?'#059669':s==='in_progress'?'#d97706':'#dc2626'}
-function loadCache(){try{const x=JSON.parse(localStorage.getItem(cacheKey)||'{}');findings=Array.isArray(x.findings)?x.findings:[];templates=Array.isArray(x.templates)?x.templates:[]}catch(e){findings=[];templates=[]}}
-function saveCache(){try{localStorage.setItem(cacheKey,JSON.stringify({findings,templates,updatedAt:Date.now()}))}catch(e){}}
-function setMsg(t,good=false){const e=$('fnSyncStatus');if(e){e.textContent=t;e.style.color=good?'#059669':'var(--muted)'}}
-function areaOptions(){const sel=$('fnAreaInput');if(!sel)return;const old=sel.value;const areas=Object.entries(patrolData||{});sel.innerHTML='<option value="">Pilih area...</option>'+areas.map(([k,a])=>`<option value="${esc(k)}">${esc(a?.name||('Area '+(parseInt(k)+1)))}</option>`).join('');if(areas.some(([k])=>String(k)===String(old)))sel.value=old}
-async function get(action,extra={}){if(!API)throw new Error('Central endpoint belum dikonfigurasi.');const q=new URLSearchParams({action,deviceId:DEVICE,...extra});const r=await fetch(API+'?'+q.toString(),{method:'GET',cache:'no-store'});if(!r.ok)throw new Error('Central HTTP '+r.status);const j=await r.json();if(!j.ok)throw new Error(j.error||'Central menolak permintaan.');return j}
-async function post(payload){if(!API)throw new Error('Central endpoint belum dikonfigurasi.');const r=await fetch(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...payload,deviceId:DEVICE})});return {ok:r.type==='opaque'||r.ok}}
-async function ensureCentralSetup(){if(!API)return;try{await get('setup')}catch(e){console.warn('[CENTRAL setup]',e)}}
-async function sync(){setMsg('⏳ Sinkronisasi Finding Notes CENTRAL...');try{const [f,t]=await Promise.all([get('findingList'),get('templateList')]);findings=Array.isArray(f.findings)?f.findings:[];templates=Array.isArray(t.templates)?t.templates:[];saveCache();areaOptions();render();renderTemplates();setMsg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);renderAreas()}catch(e){setMsg('⚠️ Sync gagal: '+(e.message||e)+'. Cache terakhir ditampilkan.');areaOptions();render();renderTemplates();renderAreas()}}
-function renderTemplates(){const sel=$('fnTemplateSelect');if(!sel)return;sel.innerHTML='<option value="">Tanpa template</option>'+templates.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');const list=$('fnTplList');if(list)list.innerHTML=templates.length?templates.map(t=>`<div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px"><div style="font-weight:800;color:var(--primary)">${esc(t.name)}</div><div class="small" style="white-space:pre-wrap;margin-top:5px;max-height:120px;overflow:auto">${esc(t.content||'')}</div><button type="button" class="btn btn-danger fn-tpl-del" data-id="${esc(t.id)}" style="padding:8px 12px;margin-top:8px">HAPUS TEMPLATE</button></div>`).join(''):'<div class="small">Belum ada template custom.</div>';list?.querySelectorAll('.fn-tpl-del').forEach(b=>b.onclick=async()=>{if(!confirm('Hapus template ini dari CENTRAL?'))return;try{await post({action:'templateDelete',id:b.dataset.id});await new Promise(r=>setTimeout(r,800));await sync()}catch(e){alert('Gagal: '+e.message)}})}
-function findingForArea(areaKey,areaName){const ak=String(areaKey??'');const an=String(areaName||'').trim().toLowerCase();return findings.filter(f=>f&&f.status!=='fixed'&&((f.areaKey!=null&&String(f.areaKey)===ak)||(String(f.area||'').trim().toLowerCase()===an)))}
-function getActiveFindingNotesForArea(areaName,areaKey){return findingForArea(areaKey,areaName)}
+const statusText=s=>s==='fixed'?'FIXED / SELESAI':s==='in_progress'?'IN PROGRESS':'OPEN';
+const statusColor=s=>s==='fixed'?'#059669':s==='in_progress'?'#d97706':'#dc2626';
+const defaultTemplates=[
+ {id:'BUILTIN-GENERAL',name:'GENERAL FINDING',content:'TEMUAN:\n\nLOKASI:\n\nKONDISI:\n\nTINDAKAN / REKOMENDASI:'},
+ {id:'BUILTIN-SAFETY',name:'SAFETY',content:'TEMUAN SAFETY:\n\nLOKASI:\n\nRISIKO:\n\nTINDAKAN SEMENTARA:\n\nREKOMENDASI:'},
+ {id:'BUILTIN-SECURITY',name:'SECURITY',content:'TEMUAN SECURITY:\n\nLOKASI:\n\nKONDISI / INDIKASI:\n\nTINDAKAN PETUGAS:\n\nTINDAK LANJUT:'}
+];
+function loadCache(){try{const x=JSON.parse(localStorage.getItem(cacheKey)||'{}');findings=Array.isArray(x.findings)?x.findings:[];templates=Array.isArray(x.templates)?x.templates:[]}catch(_){findings=[];templates=[]} if(!templates.length)templates=defaultTemplates.slice()}
+function saveCache(){try{localStorage.setItem(cacheKey,JSON.stringify({findings,templates,updatedAt:Date.now()}))}catch(_){}
+}
+function msg(t,good=false){const e=$('fnSyncStatus');if(e){e.textContent=t;e.style.color=good?'#059669':'var(--muted)'}}
+function areaEntries(){return Object.entries(window.__STT_PATROL_DATA__||{}).length?Object.entries(window.__STT_PATROL_DATA__):Object.entries(patrolData||{})}
+function refreshAreas(){const sel=$('fnAreaInput');if(!sel)return;const old=sel.value;const entries=areaEntries();sel.innerHTML='<option value="">Pilih area...</option>'+entries.map(([k,a])=>`<option value="${esc(k)}">${esc(a?.name||('Area '+(Number(k)+1)))}</option>`).join('');if(entries.some(([k])=>String(k)===String(old)))sel.value=old;}
+async function get(action,extra={}){if(!API)throw new Error('URL CENTRAL belum dikonfigurasi.');const q=new URLSearchParams({action,deviceId:DEVICE,...extra});const r=await fetch(API+'?'+q.toString(),{method:'GET',cache:'no-store',redirect:'follow'});if(!r.ok)throw new Error('CENTRAL HTTP '+r.status);const j=await r.json();if(!j.ok)throw new Error(j.error||'CENTRAL menolak permintaan.');return j}
+async function post(payload){if(!API)throw new Error('URL CENTRAL belum dikonfigurasi.');const body=JSON.stringify({...payload,deviceId:DEVICE});const r=await fetch(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body});return {ok:r.type==='opaque'||r.ok}}
+async function sync(){msg('⏳ Sinkronisasi Finding Notes CENTRAL...');try{const [f,t]=await Promise.all([get('findingList'),get('templateList')]);findings=Array.isArray(f.findings)?f.findings:[];const remote=Array.isArray(t.templates)?t.templates:[];templates=remote.length?remote:defaultTemplates.slice();saveCache();refreshAreas();render();renderTemplates();msg('✅ CENTRAL tersambung • '+new Date().toLocaleString('id-ID'),true);try{renderAreas()}catch(_){};return true}catch(e){refreshAreas();render();renderTemplates();msg('⚠️ CENTRAL belum tersambung: '+(e.message||e),false);try{renderAreas()}catch(_){};return false}}
+function renderTemplates(){const sel=$('fnTemplateSelect');if(sel){const old=sel.value;sel.innerHTML='<option value="">Tanpa template</option>'+templates.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');if(templates.some(t=>String(t.id)===String(old)))sel.value=old}const list=$('fnTplList');if(list){list.innerHTML=templates.length?templates.map(t=>`<div style="border:1px solid #dbe2ea;border-radius:12px;padding:12px;background:#fff"><div style="font-weight:900;color:var(--primary)">${esc(t.name)}</div><div class="small" style="white-space:pre-wrap;margin-top:6px;max-height:140px;overflow:auto">${esc(t.content||'')}</div>${String(t.id).startsWith('BUILTIN-')?'':'<button type="button" class="btn btn-danger fn-tpl-del" data-id="'+esc(t.id)+'" style="padding:8px 12px;margin-top:8px">HAPUS TEMPLATE</button>'}</div>`).join(''):'<div class="small">Belum ada template.</div>';list.querySelectorAll('.fn-tpl-del').forEach(b=>b.onclick=()=>deleteTemplate(b.dataset.id))}}
+function findingForArea(k,n){const ak=String(k??''),an=String(n||'').trim().toLowerCase();return findings.filter(f=>f&&f.status!=='fixed'&&((f.areaKey!=null&&String(f.areaKey)===ak)||String(f.area||'').trim().toLowerCase()===an))}
+function getActiveFindingNotesForArea(n,k){return findingForArea(k,n)}
 window.STT_FINDING_NOTES_GET_AREA=getActiveFindingNotesForArea;
-function photoHtml(f){const ps=Array.isArray(f.photos)?f.photos:[];if(!ps.length)return '';return `<div class="finding-photo-strip">${ps.map((p,i)=>p?.data?`<img src="${p.data}" alt="Finding photo ${i+1}">`:'').join('')}</div>`}
-function render(){const filter=$('fnStatusFilter')?.value||'active';let arr=findings.slice().sort((a,b)=>String(b.foundAt||'').localeCompare(String(a.foundAt||'')));if(filter==='active')arr=arr.filter(x=>x.status!=='fixed');if(filter==='fixed')arr=arr.filter(x=>x.status==='fixed');const active=findings.filter(x=>x.status!=='fixed').length;if($('fnActiveCount'))$('fnActiveCount').textContent=`(${active} aktif / ${findings.length} total)`;const list=$('fnList');if(!list)return;list.innerHTML=arr.length?arr.map(x=>`<div class="finding-central-card ${x.status==='fixed'?'finding-fixed':''}"><div class="finding-central-head" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div class="finding-central-area">📍 ${esc(x.area||'Area tidak diisi')}</div><div class="finding-central-meta">Ditemukan: ${esc(x.foundAt||'-')} • Petugas: ${esc(x.foundBy||'-')} ${x.templateName?'• Template: '+esc(x.templateName):''}</div></div><span style="font-weight:900;color:${statusClass(x.status)}">${statusText(x.status)}</span></div><div class="finding-central-content">${esc(x.content||'')}</div>${photoHtml(x)}${x.fixedAt?`<div class="small" style="margin-top:8px;color:#059669">✓ Diperbaiki: ${esc(x.fixedAt)} • ${esc(x.fixedBy||'-')}</div>`:''}<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:11px">${x.status!=='fixed'?`<button class="btn btn-success fn-fix" data-id="${esc(x.id)}" style="padding:9px 13px">✓ MARK AS FIXED</button><button class="btn btn-warning fn-progress" data-id="${esc(x.id)}" style="padding:9px 13px">IN PROGRESS</button>`:''}<button class="btn btn-danger fn-del" data-id="${esc(x.id)}" style="padding:9px 13px">HAPUS</button></div></div>`).join(''):'<div class="small" style="padding:18px;text-align:center;background:#f8fafc;border-radius:14px">Tidak ada finding pada filter ini.</div>';list.querySelectorAll('.fn-fix').forEach(b=>b.onclick=()=>changeStatus(b.dataset.id,'fixed'));list.querySelectorAll('.fn-progress').forEach(b=>b.onclick=()=>changeStatus(b.dataset.id,'in_progress'));list.querySelectorAll('.fn-del').forEach(b=>b.onclick=()=>removeFinding(b.dataset.id))}
-async function changeStatus(id,status){if(!findings.find(v=>v.id===id))return;if(status==='fixed'&&!confirm('Tandai finding ini sebagai SUDAH DIPERBAIKI?'))return;try{await post({action:'findingUpdate',id,status,fixedBy:$('petugasName')?.value||'Petugas',fixedAt:new Date().toISOString()});await new Promise(r=>setTimeout(r,900));await sync()}catch(e){alert('Gagal memperbarui: '+(e.message||e))}}
-async function removeFinding(id){if(!confirm('Hapus finding ini dari CENTRAL? Untuk audit lebih aman MARK AS FIXED.'))return;try{await post({action:'findingDelete',id});await new Promise(r=>setTimeout(r,900));await sync()}catch(e){alert('Gagal menghapus: '+(e.message||e))}}
-async function filesToFindingPhotos(files){const out=[];for(const file of Array.from(files||[])){const data=await fileToDataURL(file);const comp=typeof compressDataUrl==='function'?await compressDataUrl(data,0.88,1600):data;out.push({data:comp,mimeType:(String(comp).match(/^data:([^;]+);/)||[])[1]||file.type||'image/jpeg'})}return out}
-function renderPhotoPreview(){const p=$('fnPhotoPreview');if(!p)return;p.innerHTML=selectedFindingPhotos.map((x,i)=>`<div style="position:relative"><img src="${x.data}" style="width:82px;height:82px;object-fit:cover;border-radius:9px;border:2px solid #dc2626"><button type="button" data-i="${i}" style="position:absolute;right:-4px;top:-7px;border:0;border-radius:50%;background:#111;color:#fff;width:22px;height:22px">×</button></div>`).join('');p.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedFindingPhotos.splice(Number(b.dataset.i),1);renderPhotoPreview()})}
-async function addFinding(){const areaKey=$('fnAreaInput')?.value||'';const area=patrolData?.[areaKey];const content=$('fnContentInput')?.value||'';if(!areaKey||!area){alert('Pilih area patrol terlebih dahulu.');return}if(!content.trim()){alert('Isi Finding Notes wajib diisi.');return}const sel=$('fnTemplateSelect');const t=templates.find(x=>x.id===sel?.value);const item={id:'FN-'+Date.now()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(),areaKey:String(areaKey),area:String(area.name||('Area '+(parseInt(areaKey)+1))),content,templateId:t?.id||'',templateName:t?.name||'',status:'open',foundBy:$('petugasName')?.value.trim()||'Petugas',foundAt:new Date().toLocaleString('id-ID'),createdAt:new Date().toISOString(),photos:selectedFindingPhotos.slice()};try{showOverlay('Mengirim Finding Notes ke CENTRAL...');setOverlayProgress(15);await post({action:'findingAdd',finding:item});setOverlayProgress(60);await new Promise(r=>setTimeout(r,1400));await sync();const exists=findings.some(x=>x.id===item.id);if(exists){$('fnContentInput').value='';$('fnPhotoInput').value='';selectedFindingPhotos=[];renderPhotoPreview();alert('✅ Finding tersimpan CENTRAL dan otomatis terikat ke '+item.area+'. Petugas berikutnya akan melihatnya di area tersebut.')}else alert('⚠️ Finding belum terkonfirmasi masuk CENTRAL. Periksa status device dan Apps Script.');hideOverlay();renderAreas()}catch(e){hideOverlay();alert('❌ Gagal menyimpan Finding: '+(e.message||e))}}
-async function addTemplate(){if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu untuk mengelola template.');return;}const name=$('fnTplName')?.value.trim();const content=$('fnTplContent')?.value||'';if(!name){alert('Nama template wajib diisi.');return}const item={id:'TPL-'+Date.now()+'-'+Math.random().toString(36).slice(2,7).toUpperCase(),name,content,createdAt:new Date().toISOString(),createdBy:$('petugasName')?.value||'Petugas'};try{await post({action:'templateUpsert',template:item});await new Promise(r=>setTimeout(r,700));await sync();$('fnTplName').value='';$('fnTplContent').value=''}catch(e){alert('Gagal menyimpan template: '+(e.message||e))}}
-function openTemplates(){
-  if(window.adminUnlocked!==true){alert('🔒 Kelola Template hanya bisa digunakan setelah ADMIN dibuka.');return;}
-  const m=$('fnTemplateModal');if(m)m.style.display='flex';renderTemplates()
-}
-function closeTemplates(){const m=$('fnTemplateModal');if(m)m.style.display='none'}
-function renderAreaManager(){
-  const list=$('fnAreaList');if(!list)return;
-  const entries=Object.entries(patrolData||{});
-  list.innerHTML=entries.length?entries.map(([k,a])=>`<div style="border:1px solid #e2e8f0;border-radius:12px;padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <div style="font-weight:900;color:var(--primary);min-width:90px">Area ${Number(k)+1}</div>
-    <input data-area-key="${esc(k)}" value="${esc(a?.name||('Area '+(Number(k)+1)))}" style="flex:1;min-width:180px;padding:10px;border:1px solid #cbd5e1;border-radius:9px">
-    <button type="button" class="btn btn-primary fn-area-save" data-key="${esc(k)}" style="padding:9px 12px">SIMPAN</button>
-    <button type="button" class="btn btn-danger fn-area-delete" data-key="${esc(k)}" style="padding:9px 12px">HAPUS</button>
-  </div>`).join(''):'<div class="small" style="padding:16px;text-align:center;background:#f8fafc;border-radius:12px">Belum ada area patrol.</div>';
-  list.querySelectorAll('.fn-area-save').forEach(b=>b.onclick=()=>{
-    const k=String(b.dataset.key);const inp=Array.from(list.querySelectorAll('input[data-area-key]')).find(el=>String(el.dataset.areaKey)===k);const name=String(inp?.value||'').trim();
-    if(!name){alert('Nama area wajib diisi.');return;}
-    if(!patrolData?.[k])return;
-    patrolData[k].name=name;patrolData[k].timestamp=Date.now();persistMeta();areaOptions();renderAreas();renderAreaManager();alert('✅ Nama area berhasil disimpan.')
-  });
-  list.querySelectorAll('.fn-area-delete').forEach(b=>b.onclick=()=>{
-    const k=String(b.dataset.key);const a=patrolData?.[k];if(!a)return;
-    const active=findings.filter(f=>f&&f.status!=='fixed'&&String(f.areaKey)===k);
-    if(active.length){alert('⚠️ Area ini masih memiliki Finding Notes OPEN / IN PROGRESS. Selesaikan finding terlebih dahulu sebelum menghapus area.');return;}
-    if(!confirm(`Hapus ${a.name||('Area '+(Number(k)+1))}? Foto lokal area juga akan terhapus dari daftar.`))return;
-    delete patrolData[k];persistMeta();areaOptions();renderAreas();renderAreaManager();
-  });
-}
-function openAreaManager(){
-  if(window.adminUnlocked!==true){alert('🔒 Kelola Area hanya bisa digunakan setelah ADMIN dibuka.');return;}
-  const m=$('fnAreaModal');if(m)m.style.display='flex';renderAreaManager();areaOptions()
-}
-function closeAreaManager(){const m=$('fnAreaModal');if(m)m.style.display='none'}
-function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');document.getElementById('sideNav')?.classList.remove('open');document.getElementById('navOverlay')?.classList.remove('open');document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded','false');areaOptions();sync()}
+function photoHtml(f){return (Array.isArray(f.photos)?f.photos:[]).map((p,i)=>p?.data?`<img src="${p.data}" alt="Finding ${i+1}">`:'').join('')}
+function render(){const filter=$('fnStatusFilter')?.value||'active';let arr=findings.slice();if(filter==='active')arr=arr.filter(x=>x.status!=='fixed');if(filter==='fixed')arr=arr.filter(x=>x.status==='fixed');arr.sort((a,b)=>String(b.createdAt||b.foundAt||'').localeCompare(String(a.createdAt||a.foundAt||'')));const active=findings.filter(x=>x.status!=='fixed').length;if($('fnActiveCount'))$('fnActiveCount').textContent=`(${active} aktif / ${findings.length} total)`;const list=$('fnList');if(!list)return;list.innerHTML=arr.length?arr.map(x=>`<div class="finding-central-card ${x.status==='fixed'?'finding-fixed':''}"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div class="finding-central-area">📍 ${esc(x.area||'Area tidak diisi')}</div><div class="finding-central-meta">${esc(x.foundAt||'-')} • ${esc(x.foundBy||'-')}${x.templateName?' • '+esc(x.templateName):''}</div></div><b style="color:${statusColor(x.status)}">${statusText(x.status)}</b></div><div class="finding-central-content">${esc(x.content||'')}</div>${photoHtml(x)?`<div class="finding-photo-strip">${photoHtml(x)}</div>`:''}<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:11px">${x.status!=='fixed'?'<button class="btn btn-success fn-fix" data-id="'+esc(x.id)+'">✓ MARK AS FIXED</button><button class="btn btn-warning fn-progress" data-id="'+esc(x.id)+'">IN PROGRESS</button>':''}<button class="btn btn-danger fn-del" data-id="${esc(x.id)}">HAPUS</button></div></div>`).join(''):'<div class="small" style="padding:18px;text-align:center;background:#f8fafc;border-radius:14px">Tidak ada finding pada filter ini.</div>';list.querySelectorAll('.fn-fix').forEach(b=>b.onclick=()=>changeStatus(b.dataset.id,'fixed'));list.querySelectorAll('.fn-progress').forEach(b=>b.onclick=()=>changeStatus(b.dataset.id,'in_progress'));list.querySelectorAll('.fn-del').forEach(b=>b.onclick=()=>deleteFinding(b.dataset.id))}
+async function changeStatus(id,status){if(status==='fixed'&&!confirm('Tandai finding sebagai FIXED / SELESAI?'))return;try{await post({action:'findingUpdate',id,status,fixedBy:$('petugasName')?.value||'Petugas',fixedAt:new Date().toISOString()});await wait(700);await sync()}catch(e){alert('❌ Gagal: '+(e.message||e))}}
+async function deleteFinding(id){if(!confirm('Hapus finding ini dari CENTRAL?'))return;try{await post({action:'findingDelete',id});await wait(700);await sync()}catch(e){alert('❌ Gagal: '+(e.message||e))}}
+function wait(ms){return new Promise(r=>setTimeout(r,ms))}
+async function fileToFinding(file){const data=await fileToDataURL(file);const comp=typeof compressDataUrl==='function'?await compressDataUrl(data,.88,1600):data;return {data:comp,mimeType:(String(comp).match(/^data:([^;]+);/)||[])[1]||file.type||'image/jpeg'}}
+async function addPhotoFiles(files){if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu.');return}for(const f of Array.from(files||[])){if(!String(f.type||'').startsWith('image/'))continue;selectedFindingPhotos.push(await fileToFinding(f))}renderPhotoPreview()}
+function renderPhotoPreview(){const p=$('fnPhotoPreview');if(!p)return;p.innerHTML=selectedFindingPhotos.map((x,i)=>`<div style="position:relative"><img src="${x.data}" style="width:86px;height:86px;object-fit:cover;border-radius:9px;border:3px solid #dc2626"><button type="button" data-i="${i}" style="position:absolute;right:-5px;top:-7px;border:0;border-radius:50%;background:#111;color:#fff;width:23px;height:23px">×</button></div>`).join('');p.querySelectorAll('button').forEach(b=>b.onclick=()=>{selectedFindingPhotos.splice(Number(b.dataset.i),1);renderPhotoPreview()})}
+async function addFinding(){refreshAreas();const k=$('fnAreaInput')?.value||'',area=patrolData?.[k],content=$('fnContentInput')?.value||'';if(!k||!area){alert('❌ Area belum tersedia. Tambahkan area patroli terlebih dahulu.');return}if(!content.trim()){alert('❌ Isi Finding Notes wajib diisi.');return}const t=templates.find(x=>String(x.id)===String($('fnTemplateSelect')?.value||''));const item={id:'FN-'+Date.now()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(),areaKey:String(k),area:String(area.name||('Area '+(Number(k)+1))),content,templateId:t?.id||'',templateName:t?.name||'',status:'open',foundBy:($('petugasName')?.value||'Petugas').trim(),foundAt:new Date().toLocaleString('id-ID'),createdAt:new Date().toISOString(),photos:selectedFindingPhotos.slice()};findings.unshift(item);saveCache();render();try{showOverlay('Menyimpan Finding Notes...');setOverlayProgress(15);await post({action:'findingAdd',finding:item});setOverlayProgress(65);await wait(900);const ok=await sync();setOverlayProgress(100);hideOverlay();if(ok&&findings.some(x=>x.id===item.id)){selectedFindingPhotos=[];renderPhotoPreview();$('fnContentInput').value='';alert('✅ Finding tersimpan CENTRAL dan terikat ke '+item.area+'.')}else alert('⚠️ Finding disimpan di perangkat dan akan menunggu CENTRAL tersambung.')}catch(e){hideOverlay();alert('⚠️ Finding disimpan lokal. CENTRAL belum tersambung: '+(e.message||e))}try{renderAreas()}catch(_){} }
+async function addTemplate(){if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu untuk mengelola template.');return}const name=String($('fnTplName')?.value||'').trim(),content=$('fnTplContent')?.value||'';if(!name){alert('Nama template wajib diisi.');return}const item={id:'TPL-'+Date.now()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(),name,content,createdAt:new Date().toISOString(),createdBy:$('petugasName')?.value||'Petugas'};templates.push(item);saveCache();renderTemplates();try{await post({action:'templateUpsert',template:item});await wait(700);await sync();$('fnTplName').value='';$('fnTplContent').value='';alert('✅ Template disimpan.')}catch(e){alert('⚠️ Template tersimpan di perangkat; CENTRAL belum tersambung: '+(e.message||e))}}
+async function deleteTemplate(id){if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu.');return}if(String(id).startsWith('BUILTIN-')){alert('Template bawaan tidak bisa dihapus.');return}if(!confirm('Hapus template ini dari CENTRAL?'))return;templates=templates.filter(x=>String(x.id)!==String(id));saveCache();renderTemplates();try{await post({action:'templateDelete',id});await wait(600);await sync()}catch(e){alert('⚠️ Template dihapus lokal; CENTRAL belum tersambung.')}}
+function openTemplates(){if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu.');return}$('fnTemplateModal')?.style.setProperty('display','flex');renderTemplates()}
+function closeTemplates(){$('fnTemplateModal')?.style.setProperty('display','none')}
+function renderAreaManager(){const list=$('fnAreaList');if(!list)return;const entries=areaEntries();list.innerHTML=entries.length?entries.map(([k,a])=>`<div style="border:1px solid #dbe2ea;border-radius:12px;padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="color:var(--primary)">Area ${Number(k)+1}</b><input data-area-key="${esc(k)}" value="${esc(a?.name||('Area '+(Number(k)+1)))}" style="flex:1;min-width:180px;padding:10px;border:1px solid #cbd5e1;border-radius:9px"><button type="button" class="btn btn-primary fn-area-save" data-key="${esc(k)}">SIMPAN</button><button type="button" class="btn btn-danger fn-area-delete" data-key="${esc(k)}">HAPUS</button></div>`).join(''):'<div class="small">Belum ada area patroli.</div>';list.querySelectorAll('.fn-area-save').forEach(b=>b.onclick=()=>{const k=String(b.dataset.key),inp=list.querySelector(`input[data-area-key="${CSS.escape(k)}"]`),name=String(inp?.value||'').trim();if(!name){alert('Nama area wajib diisi.');return}if(!patrolData?.[k])return;patrolData[k].name=name;patrolData[k].timestamp=Date.now();persistMeta();refreshAreas();renderAreas();renderAreaManager();alert('✅ Nama area disimpan. Finding OPEN / IN PROGRESS tetap memakai area key '+k+'.')});list.querySelectorAll('.fn-area-delete').forEach(b=>b.onclick=()=>{const k=String(b.dataset.key),active=findings.filter(f=>f&&f.status!=='fixed'&&String(f.areaKey)===k);if(active.length){alert('⚠️ Area masih memiliki Finding OPEN / IN PROGRESS. Selesaikan finding terlebih dahulu.');return}if(!confirm('Hapus area ini?'))return;delete patrolData[k];persistMeta();refreshAreas();renderAreas();renderAreaManager()})}
+function openAreaManager(){if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu.');return}$('fnAreaModal')?.style.setProperty('display','flex');refreshAreas();renderAreaManager()}
+function closeAreaManager(){$('fnAreaModal')?.style.setProperty('display','none')}
+function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');$('sideNav')?.classList.remove('open');$('navOverlay')?.classList.remove('open');$('hamburgerBtn')?.setAttribute('aria-expanded','false');refreshAreas();render();renderTemplates();sync()}
+function updatePhotoAdmin(){const ok=window.adminUnlocked===true;const c=$('fnCameraPhotoBtn'),g=$('fnGalleryPhotoBtn'),st=$('fnPhotoAccessStatus');if(c)c.disabled=!ok;if(g)g.disabled=!ok;if(st){st.textContent=ok?'✅ ADMIN AKTIF — upload foto Finding Notes tersedia.':'🔒 Buka ADMIN untuk upload foto Finding Notes.';st.style.color=ok?'#059669':'#b91c1c'}}
 window.STT_FINDING_NOTES={sync,open:openSection};
-function updateFindingPhotoAdminUi(){
-  const ok=window.adminUnlocked===true;
-  const cam=$('fnCameraPhotoBtn'),gal=$('fnGalleryPhotoBtn'),st=$('fnPhotoAccessStatus');
-  if(cam)cam.disabled=!ok;if(gal)gal.disabled=!ok;
-  if(st){st.textContent=ok?'✅ ADMIN AKTIF — upload foto Finding Notes tersedia.':'🔒 Buka ADMIN untuk upload foto Finding Notes.';st.style.color=ok?'#059669':'#b91c1c';}
-}
-async function handleFindingPhotoFiles(files){
-  if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu untuk upload foto Finding Notes.');return;}
-  try{selectedFindingPhotos.push(...await filesToFindingPhotos(files));renderPhotoPreview();}catch(err){alert('Gagal membaca foto finding: '+(err.message||err))}
-}
-document.addEventListener('DOMContentLoaded',()=>{
-  loadCache();areaOptions();render();renderTemplates();updateFindingPhotoAdminUi();
-  setTimeout(async()=>{await ensureCentralSetup();await sync()},500);
-  $('fnRefreshBtn')?.addEventListener('click',sync);
-  $('fnSaveBtn')?.addEventListener('click',addFinding);
-  $('fnTemplateBtn')?.addEventListener('click',openTemplates);
-  $('fnAreaManageBtn')?.addEventListener('click',openAreaManager);
-  $('fnTemplateClose')?.addEventListener('click',closeTemplates);
-  $('fnAreaClose')?.addEventListener('click',closeAreaManager);
-  $('fnAreaAdd')?.addEventListener('click',()=>{if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu.');return;}if(typeof addNewArea==='function'){addNewArea();renderAreaManager();areaOptions();}});
-  $('fnTplSave')?.addEventListener('click',addTemplate);
-  $('fnStatusFilter')?.addEventListener('change',render);
-  $('fnGalleryPhotoBtn')?.addEventListener('click',()=>{if(window.adminUnlocked===true)$('fnPhotoInput')?.click();else alert('🔒 Buka ADMIN terlebih dahulu.');});
-  $('fnCameraPhotoBtn')?.addEventListener('click',()=>{if(window.adminUnlocked===true)$('fnCameraPhotoInput')?.click();else alert('🔒 Buka ADMIN terlebih dahulu.');});
-  $('fnPhotoInput')?.addEventListener('change',async e=>{await handleFindingPhotoFiles(e.target.files);e.target.value=''});
-  $('fnCameraPhotoInput')?.addEventListener('change',async e=>{await handleFindingPhotoFiles(e.target.files);e.target.value=''});
-  $('fnTemplateSelect')?.addEventListener('change',()=>{const t=templates.find(x=>x.id===$('fnTemplateSelect').value);if(t)$('fnContentInput').value=t.content||''});
-  window.addEventListener('stt-admin-state',updateFindingPhotoAdminUi);
-  document.querySelectorAll('.nav-item[data-action="finding-notes"]').forEach(b=>b.addEventListener('click',openSection))
-});
+document.addEventListener('DOMContentLoaded',()=>{loadCache();refreshAreas();render();renderTemplates();updatePhotoAdmin();$('fnRefreshBtn')?.addEventListener('click',sync);$('fnSaveBtn')?.addEventListener('click',addFinding);$('fnTemplateBtn')?.addEventListener('click',openTemplates);$('fnAreaManageBtn')?.addEventListener('click',openAreaManager);$('fnTemplateClose')?.addEventListener('click',closeTemplates);$('fnAreaClose')?.addEventListener('click',closeAreaManager);$('fnAreaAdd')?.addEventListener('click',()=>{if(window.adminUnlocked!==true){alert('🔒 Buka ADMIN terlebih dahulu.');return}if(typeof addNewArea==='function'){addNewArea();refreshAreas();renderAreaManager()}});$('fnTplSave')?.addEventListener('click',addTemplate);$('fnStatusFilter')?.addEventListener('change',render);$('fnGalleryPhotoBtn')?.addEventListener('click',()=>{if(window.adminUnlocked===true)$('fnPhotoInput')?.click();else alert('🔒 Buka ADMIN terlebih dahulu.')});$('fnCameraPhotoBtn')?.addEventListener('click',()=>{if(window.adminUnlocked===true)$('fnCameraPhotoInput')?.click();else alert('🔒 Buka ADMIN terlebih dahulu.')});$('fnPhotoInput')?.addEventListener('change',async e=>{await addPhotoFiles(e.target.files);e.target.value=''});$('fnCameraPhotoInput')?.addEventListener('change',async e=>{await addPhotoFiles(e.target.files);e.target.value=''});$('fnTemplateSelect')?.addEventListener('change',()=>{const t=templates.find(x=>String(x.id)===String($('fnTemplateSelect').value));if(t)$('fnContentInput').value=t.content||''});window.addEventListener('stt-admin-state',updatePhotoAdmin);window.addEventListener('stt-patrol-data-changed',()=>{refreshAreas();try{renderAreaManager()}catch(_){}});setTimeout(sync,900)})
 })();
 </script>
 
