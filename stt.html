@@ -1745,6 +1745,7 @@ body:not(.admin-unlocked) #companySection{display:none !important;}
     <button id="backupBtn" class="btn btn-ghost"><i class="fas fa-save"></i> Backup</button>
     <button onclick="manualDeepCleanup()" class="btn btn-warning"><i class="fas fa-optimize"></i> Optimize Storage</button>
     <button id="genPdfBtn" class="btn btn-primary"><i class="fas fa-file-pdf"></i> Generate PRO PDF</button>
+    <button id="genWordBtn" class="btn btn-success"><i class="fas fa-file-word"></i> Export Word</button>
     <div id="autoPdfStatus" class="small" style="margin-top:8px;font-weight:700;"></div>
   </div>
 </div>
@@ -1854,7 +1855,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyJ1CK7f-BKdFBriUUwks86SWb-uaoa0BsHL2zBhtmqEr6jgKi-i3EJe3DvIDq3IxPX/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyv4mYhuLhXESgODW7YbkkrkCYANgkDjtcwfyipHZLz_Cx0RrAPKgq1mrkCVnsouP9i/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -3161,6 +3162,25 @@ function setupSuperCleanup() {
   }
   // Legacy gallery setup removed. Gallery access is controlled only by the Camera tab password.
 
+  // ==================== CENTRAL FINDING NOTES BY AREA ====================
+  function getActiveFindingNotesForArea(areaName){
+    try{
+      const cache=JSON.parse(localStorage.getItem('STT_FINDING_CACHE_V1')||'{}');
+      const list=Array.isArray(cache.findings)?cache.findings:[];
+      const target=String(areaName||'').trim().toLowerCase();
+      return list.filter(f=>f && f.status!=='fixed' && String(f.area||'').trim().toLowerCase()===target);
+    }catch(e){ return []; }
+  }
+
+  function findingAlertHtml(areaName){
+    const list=getActiveFindingNotesForArea(areaName);
+    if(!list.length) return '';
+    return `<div class="finding-area-alert">
+      <div class="finding-area-title">⚠️ FINDING NOTES AKTIF (${list.length})</div>
+      ${list.map(f=>`<div class="finding-area-item">${String(f.content||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}<div class="finding-area-meta">Status: ${String(f.status||'open').toUpperCase().replace('_',' ')} • Ditemukan: ${String(f.foundAt||'-')} • Petugas: ${String(f.foundBy||'-')}</div></div>`).join('')}
+    </div>`;
+  }
+
   // ==================== RENDER AREAS UI ====================
   function renderAreas(){
     const container = document.getElementById('areas'); container.innerHTML='';
@@ -3179,6 +3199,7 @@ function setupSuperCleanup() {
       
       div.innerHTML = `
         <h3>Area ${parseInt(k)+1}: <input data-field="name" value="${a.name||'Area '+(parseInt(k)+1)}" style="border:none;background:transparent;font-weight:700;font-size:14px" /></h3>
+        ${findingAlertHtml(a.name||('Area '+(parseInt(k)+1)))}
         <div style="margin-bottom:6px"><label class="small">Catatan Area</label><textarea data-field="notes" placeholder="Tambahkan catatan untuk area ini...">${a.notes||''}</textarea></div>
         <div style="margin-bottom:6px"><label class="small">Deskripsi Global</label><textarea data-field="global" placeholder="Deskripsi umum area patroli...">${a.globalDescription||''}</textarea></div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -3964,6 +3985,28 @@ function setupSuperCleanup() {
         areaHeader(`AREA ${ai+1}: ${area.name || `Area ${ai+1}`}`);
 
         let y = 47;
+        const activeFindings = getActiveFindingNotesForArea(area.name || `Area ${ai+1}`);
+        if(activeFindings.length){
+          pdf.setFillColor(220,38,38);
+          pdf.roundedRect(M,y,W-2*M,10,2,2,'F');
+          pdf.setFont('helvetica','bold');
+          pdf.setFontSize(10.5);
+          pdf.setTextColor(255,255,255);
+          pdf.text(`⚠ FINDING NOTES AKTIF (${activeFindings.length})`,M+4,y+6.8);
+          y += 14;
+          for(const fn of activeFindings){
+            if(y>H-35){ footer(); pdf.addPage(); areaHeader(`AREA ${ai+1}: ${area.name || `Area ${ai+1}`} • FINDING NOTES`); y=47; }
+            pdf.setFillColor(254,242,242);
+            const lines=pdf.splitTextToSize(String(fn.content||''),W-2*M-8);
+            const boxH=Math.max(18,7+lines.length*4.2);
+            pdf.roundedRect(M,y,W-2*M,boxH,2,2,'F');
+            pdf.setFont('helvetica','bold'); pdf.setFontSize(9.5); pdf.setTextColor(127,29,29);
+            pdf.text(lines,M+4,y+7);
+            pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor(153,27,27);
+            pdf.text(`Status: ${String(fn.status||'open').toUpperCase().replace('_',' ')} • Ditemukan: ${String(fn.foundAt||'-')} • Petugas: ${String(fn.foundBy||'-')}`,M+4,y+boxH-4);
+            y += boxH+5;
+          }
+        }
         const notes = String(area.notes || area.globalDescription || '').trim();
         if(notes){
           pdf.setFont('helvetica','bold');
@@ -4149,6 +4192,54 @@ function setupSuperCleanup() {
       console.error('[PDF]',e);
       alert('❌ Gagal membuat PDF: ' + (e?.message || e));
     }
+  });
+
+  // ==================== WORD EXPORT — PHOTO + DESCRIPTION REPORT ====================
+  document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
+    try{
+      const areas=Object.values(patrolData||{}).filter(Boolean);
+      const totalPhotos=areas.reduce((n,a)=>n+(Array.isArray(a.photos)?a.photos.length:0),0);
+      if(!areas.length) throw new Error('Belum ada area patroli.');
+      if(!totalPhotos) throw new Error('Belum ada foto evidence patroli.');
+      showOverlay('Membuat Word Security Report...'); setOverlayProgress(5);
+
+      const petugas=(document.getElementById('petugasName')?.value||'Petugas').trim();
+      const tanggal=document.getElementById('tanggal')?.value||new Date().toISOString().slice(0,10);
+      const jam=document.getElementById('jam')?.value||new Date().toTimeString().slice(0,5);
+      const generated=new Date().toLocaleString('id-ID');
+      const safe=v=>String(v??'').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80);
+      const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+      async function photoDataWord(p){
+        if(p && typeof p==='object' && p.ref){ const b=await idbGet(STORE_BLOBS,p.ref); return b?await blobToBase64(b):null; }
+        return typeof p==='string'?p:null;
+      }
+      const logoL=logoData||''; const logoR=logoDataRight||'';
+      let html=`<!doctype html><html><head><meta charset="utf-8"><title>Laporan Patroli Security</title><style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#2a303a;margin:28px;font-size:10pt} h1,h2,h3{margin:0} .cover{text-align:center} .logo{width:90px;height:90px;object-fit:contain;border:1px solid #d7dce4;margin:4px} .rule{border-top:2px solid #144891;margin:10px 0 22px}.meta{background:#f8fafc;padding:12px;border:1px solid #e2e8f0;border-radius:8px;margin:12px 0 18px}.area{page-break-before:always}.area-title{font-size:18pt;color:#144891;font-weight:800;border-bottom:2px solid #144891;padding-bottom:6px;margin-bottom:12px}.finding{background:#fee2e2;border:2px solid #dc2626;padding:10px;margin:10px 0;border-radius:7px}.finding-title{font-size:13pt;font-weight:900;color:#991b1b}.finding-body{font-size:12pt;font-weight:800;white-space:pre-wrap;margin-top:5px}.finding-meta{font-size:8pt;color:#991b1b;font-weight:700;margin-top:5px}.note{margin:10px 0;padding:10px;background:#f8fafc;border-left:4px solid #144891;white-space:pre-wrap}.evidence{border:1px solid #dbe3ee;margin:12px 0;padding:10px;page-break-inside:avoid}.evidence table{width:100%;border-collapse:collapse}.evidence td{vertical-align:top}.photo{width:300px;max-width:100%;max-height:290px;object-fit:contain}.desc{padding-left:14px;font-size:11pt;line-height:1.45;white-space:pre-wrap}.footer{margin-top:30px;border-top:1px solid #d7dce4;padding-top:8px;font-size:8pt;color:#69707a}</style></head><body>`;
+      html+=`<div class="cover"><div><img class="logo" src="${logoL}"><img class="logo" src="${logoR}"></div><div class="rule"></div><h1>${esc(companyName||'NAMA PERUSAHAAN')}</h1><p>${esc(companyAddress||'ALAMAT PERUSAHAAN')}</p><h2>SECURITY PATROL &amp; INCIDENT DOCUMENTATION</h2><h1 style="margin-top:25px">LAPORAN PATROLI SECURITY</h1><div class="meta"><b>Petugas:</b> ${esc(petugas)} &nbsp;&nbsp; <b>Tanggal:</b> ${esc(tanggal)} &nbsp;&nbsp; <b>Jam:</b> ${esc(jam)}<br><span>Generated: ${esc(generated)}</span></div>`;
+      if(officerPhotoDataUrl) html+=`<img src="${officerPhotoDataUrl}" style="max-width:420px;max-height:480px;object-fit:contain;border:1px solid #d7dce4"><p><b>FOTO PETUGAS SECURITY</b></p>`;
+      html+=`</div>`;
+      let done=0;
+      for(let ai=0;ai<areas.length;ai++){
+        const area=areas[ai]||{}; const photos=Array.isArray(area.photos)?area.photos:[];
+        html+=`<div class="area"><div class="area-title">AREA ${ai+1}: ${esc(area.name||`Area ${ai+1}`)}</div>`;
+        const af=getActiveFindingNotesForArea(area.name||`Area ${ai+1}`);
+        if(af.length){ html+=`<div class="finding"><div class="finding-title">⚠ FINDING NOTES AKTIF (${af.length})</div>`+af.map(f=>`<div class="finding-body">${esc(f.content||'')}<div class="finding-meta">Status: ${esc(String(f.status||'open').toUpperCase().replace('_',' '))} • Ditemukan: ${esc(f.foundAt||'-')} • Petugas: ${esc(f.foundBy||'-')}</div></div>`).join('')+`</div>`; }
+        const notes=String(area.notes||area.globalDescription||'').trim(); if(notes) html+=`<div class="note"><b>CATATAN AREA</b><br>${esc(notes)}</div>`;
+        for(let i=0;i<photos.length;i++){ const src=await photoDataWord(photos[i]); const desc=String(area.descriptions?.[i]||DEFAULT_PATROL_DESCRIPTION).trim()||DEFAULT_PATROL_DESCRIPTION; html+=`<div class="evidence"><table><tr><td style="width:48%">${src?`<img class="photo" src="${src}">`:'Foto tidak tersedia'}</td><td class="desc"><b>Foto ${i+1}</b><br><br>${esc(desc)}</td></tr></table></div>`; done++; setOverlayProgress(5+Math.round(done/Math.max(1,totalPhotos)*85)); }
+        if(!photos.length) html+=`<p>Tidak ada foto evidence pada area ini.</p>`;
+        html+=`</div>`;
+      }
+      html+=`<div class="footer">Laporan dibuat oleh STT • ${esc(generated)}</div></body></html>`;
+      const blob=new Blob(['\ufeff',html],{type:'application/msword'});
+      const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);
+      const rawShift=String(document.getElementById('shift')?.value||'').trim(); const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';
+      const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.doc`;
+      const saved=await saveBlobToPreferredFolder(blob,filename);
+      if(!saved){ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500); }
+      setOverlayProgress(100); hideOverlay();
+      alert(`✅ WORD SECURITY REPORT SELESAI\n\n📥 ${filename}`);
+    }catch(e){ hideOverlay(); console.error('[WORD]',e); alert('❌ Gagal membuat Word: '+(e?.message||e)); }
   });
 
   // ==================== EVENT LISTENERS ====================
@@ -4703,6 +4794,13 @@ renderAreas();
 </script>
 
 <!-- ==================== CENTRAL FINDING NOTES ==================== -->
+<style id="STT_FINDING_AREA_ALERT_CSS">
+.finding-area-alert{margin:10px 0 12px;padding:13px 14px;border-radius:12px;background:#dc2626;color:#fff;border:2px solid #991b1b;box-shadow:0 4px 14px rgba(153,27,27,.18)}
+.finding-area-alert .finding-area-title{font-size:18px;font-weight:900;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+.finding-area-alert .finding-area-item{margin-top:8px;padding:9px 10px;background:rgba(255,255,255,.12);border-radius:8px;font-size:15px;font-weight:800;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.finding-area-alert .finding-area-meta{font-size:12px;font-weight:700;opacity:.95;margin-top:4px}
+</style>
+
 <section id="findingNotesSection" class="card menu-only-section" style="margin-top:18px;border-left:5px solid var(--warning);">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
     <div>
@@ -4805,7 +4903,7 @@ function open(){const m=$('fnTemplateModal');if(m)m.style.display='flex';renderT
 function close(){const m=$('fnTemplateModal');if(m)m.style.display='none'}
 function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');document.getElementById('sideNav')?.classList.remove('open');document.getElementById('navOverlay')?.classList.remove('open');document.getElementById('hamburgerBtn')?.setAttribute('aria-expanded','false');sync()}
 window.STT_FINDING_NOTES={sync,open:openSection};
-document.addEventListener('DOMContentLoaded',()=>{loadCache();render();renderTemplates();$('fnRefreshBtn')?.addEventListener('click',sync);$('fnSaveBtn')?.addEventListener('click',addFinding);$('fnTemplateBtn')?.addEventListener('click',open);$('fnTemplateClose')?.addEventListener('click',close);$('fnTplSave')?.addEventListener('click',addTemplate);$('fnStatusFilter')?.addEventListener('change',render);document.querySelectorAll('.nav-item[data-action="finding-notes"]').forEach(b=>b.addEventListener('click',openSection));$('fnTemplateSelect')?.addEventListener('change',()=>{const t=templates.find(x=>x.id===$('fnTemplateSelect').value);if(t)$('fnContentInput').value=t.content||''});});
+document.addEventListener('DOMContentLoaded',()=>{loadCache();render();renderTemplates();setTimeout(()=>sync(),900);$('fnRefreshBtn')?.addEventListener('click',sync);$('fnSaveBtn')?.addEventListener('click',addFinding);$('fnTemplateBtn')?.addEventListener('click',open);$('fnTemplateClose')?.addEventListener('click',close);$('fnTplSave')?.addEventListener('click',addTemplate);$('fnStatusFilter')?.addEventListener('change',render);document.querySelectorAll('.nav-item[data-action="finding-notes"]').forEach(b=>b.addEventListener('click',openSection));$('fnTemplateSelect')?.addEventListener('change',()=>{const t=templates.find(x=>x.id===$('fnTemplateSelect').value);if(t)$('fnContentInput').value=t.content||''});});
 })();
 </script>
 
