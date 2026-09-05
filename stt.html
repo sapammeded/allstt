@@ -1856,7 +1856,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxfIRqd5r2c0-UpFT6wjrvNGVlc1COlKzsRcmbeCz1tiYjY0B30ZbaBwBMhUhcYY503/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbwpDIosybszvvvNIVdkXIjc0gXNa2pVsiFzxL5_jTT_IR0rz5yZ8ZltVRwKgh_PGrIC/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -4892,7 +4892,7 @@ renderAreas();
 <script id="STT_CENTRAL_FINDING_NOTES_CENTRAL_V9">
 (function(){'use strict';
 const API=(typeof PDF_UPLOAD_URL==='string'&&PDF_UPLOAD_URL.trim())?PDF_UPLOAD_URL.trim():'';
-const CACHE='STT_FINDING_CENTRAL_CACHE_V9', QUEUE='STT_FINDING_PENDING_QUEUE_V9';
+const CACHE='STT_FINDING_CENTRAL_CACHE_V10', QUEUE='STT_FINDING_PENDING_QUEUE_V10';
 let centralFindings=[], draftPhotos=[];
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -4952,7 +4952,7 @@ async function syncCentral(){
  })();
  return syncInFlight;
 }
-async function refreshOnce(){await new Promise(r=>setTimeout(r,450));return syncCentral()}
+async function refreshOnce(){return syncCentral()}
 async function updateFinding(id){
  const f=centralFindings.find(x=>String(x.finding_id)===String(id)); if(!f)return;
  const cardEl=document.querySelector('.fn-finding-card[data-finding-card="'+CSS.escape(String(id))+'"]');
@@ -4986,9 +4986,7 @@ async function flushQueue(){
   if(x.action==='SAVE_FINDING')await post({action:'SAVE_FINDING',data:x.data});
   else if(x.action==='DELETE_FINDING')await post({action:'DELETE_FINDING',finding_id:x.data.finding_id});
   else if(x.action==='UPDATE_STATUS')await post({action:'UPDATE_STATUS',finding_id:x.data.finding_id,status:x.data.status});
-  await new Promise(r=>setTimeout(r,250));
- }catch(_){} }
- await new Promise(r=>setTimeout(r,450));
+  }catch(_){} }
  try{
   const fresh=await getCentral();
   const remain=q.filter(x=>{const id=String(x.data?.finding_id||'');const found=fresh.find(f=>String(f.finding_id)===id);
