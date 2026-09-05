@@ -1856,7 +1856,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzvg0m1LbBfKtFIRrawvCglDJ3_2jF_W7z_fchwkaoaj2h3nDC8mmd2wwWw9yX_6oVa/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzCviYEAiSgox3M3XtP3KZe0EGZamMEUjY2oFZtw4KrYViX7NM-3kZ55jgyU_JjtKdQ/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -4550,17 +4550,22 @@ async function getMeta(){if(!API)throw new Error('Central Web App URL belum diko
 async function getCentral(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await retry(()=>fetchTimeout(API+'?action=GET_FINDINGS&t='+Date.now(),{cache:'no-store'},REQUEST_TIMEOUT),'Mengambil Finding Central');if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return {findings:Array.isArray(j.data)?j.data.map(normalize):[],revision:String(j.revision||'')};}
 async function postJson(payload){
 if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');
-const body=JSON.stringify(payload||{});
+const p=payload||{};
 return await retry(()=>new Promise((resolve,reject)=>{
   const iframe=document.createElement('iframe');
   iframe.name='stt_central_post_'+Date.now()+'_'+Math.random().toString(36).slice(2);
   iframe.style.display='none';
   const form=document.createElement('form');
   form.method='POST';form.action=API;form.target=iframe.name;form.enctype='application/x-www-form-urlencoded';form.style.display='none';
-  const input=document.createElement('input');input.type='hidden';input.name='payload';input.value=body;form.appendChild(input);
+  const add=(name,value)=>{const i=document.createElement('input');i.type='hidden';i.name=name;i.value=String(value??'');form.appendChild(i);};
+  add('action',p.action||'');
+  if(p.action==='SAVE_FINDING'){const d=p.data||{};add('finding_id',d.finding_id);add('area_code',d.area_code);add('photo_url',JSON.stringify(photosOf(d)));add('description',d.description);add('finder_name',d.finder_name);add('created_at',d.created_at);add('status',d.status);}
+  else if(p.action==='UPDATE_STATUS'){add('finding_id',p.finding_id);add('status',p.status);}
+  else if(p.action==='DELETE_FINDING'){add('finding_id',p.finding_id);}
+  else {add('payload',JSON.stringify(p));}
   let done=false;const finish=(err)=>{if(done)return;done=true;clearTimeout(timer);iframe.remove();form.remove();err?reject(err):resolve(true);};
   const timer=setTimeout(()=>finish(new Error('Central POST timeout.')),REQUEST_TIMEOUT);
-  iframe.onload=()=>setTimeout(()=>finish(null),250);
+  iframe.onload=()=>setTimeout(()=>finish(null),350);
   iframe.onerror=()=>finish(new Error('Central POST gagal.'));
   document.body.appendChild(iframe);document.body.appendChild(form);
   try{form.submit();}catch(e){finish(e);}
