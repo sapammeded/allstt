@@ -1856,7 +1856,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbz88Wvb7tbqMo5q93VMQgc34AalFX-iuiO6LliJvb1bhqwmOIxlevk6eW8Zhitd7SM8/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxfIRqd5r2c0-UpFT6wjrvNGVlc1COlKzsRcmbeCz1tiYjY0B30ZbaBwBMhUhcYY503/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -4927,18 +4927,80 @@ function openNew(area){
  const photos=[]; const renderDraft=()=>{box.querySelector('.fn-new-photos').innerHTML=photos.map((x,i)=>'<div class="fn-photo-item"><img src="'+esc(x)+'"><button type="button" data-i="'+i+'">×</button></div>').join('');box.querySelectorAll('.fn-new-photos button').forEach(b=>b.onclick=()=>{photos.splice(Number(b.dataset.i),1);renderDraft()})};
  const add=async files=>{for(const file of Array.from(files||[])){if(file.type.startsWith('image/'))photos.push(await dataUrl(file))}renderDraft()};
  box.querySelector('.fn-new-camera').onclick=()=>box.querySelector('.fn-new-camera-input').click();box.querySelector('.fn-new-gallery').onclick=()=>box.querySelector('.fn-new-gallery-input').click();box.querySelector('.fn-new-camera-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-gallery-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-cancel').onclick=()=>box.remove();
- box.querySelector('.fn-new-save').onclick=async()=>{const area=box.querySelector('.fn-new-area').value.trim(),finder=box.querySelector('.fn-new-finder').value.trim(),description=box.querySelector('.fn-new-content').value;if(!area)return alert('AREA wajib diisi.');if(!description.trim())return alert('Finding Notes wajib diisi.');const now=new Date(),id='FIND-'+now.getTime()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();const payload={finding_id:id,area_code:area,photo_url:JSON.stringify(photos),description,finder_name:finder||'Petugas',status:'OPEN'};if(!navigator.onLine){queue('SAVE_FINDING',payload);box.remove();return alert('📦 Offline. Finding masuk antrean Central.')};try{msg('⏳ Menyimpan Finding ke CENTRAL...');await post({action:'SAVE_FINDING',data:payload});const ok=await waitForCentral(id);if(!ok)throw new Error('Central belum mengonfirmasi Finding.');box.remove();alert('✅ Finding tersimpan di CENTRAL.')}catch(e){queue('SAVE_FINDING',payload);box.remove();alert('⚠️ CENTRAL belum mengonfirmasi. Finding masuk antrean pending.')}};
+ box.querySelector('.fn-new-save').onclick=async()=>{const area=box.querySelector('.fn-new-area').value.trim(),finder=box.querySelector('.fn-new-finder').value.trim(),description=box.querySelector('.fn-new-content').value;if(!area)return alert('AREA wajib diisi.');if(!description.trim())return alert('Finding Notes wajib diisi.');const now=new Date(),id='FIND-'+now.getTime()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();const payload={finding_id:id,area_code:area,photo_url:JSON.stringify(photos),description,finder_name:finder||'Petugas',status:'OPEN'};if(!navigator.onLine){queue('SAVE_FINDING',payload);box.remove();return alert('📦 Offline. Finding masuk antrean Central.')};try{msg('⏳ Menyimpan Finding ke CENTRAL...');await post({action:'SAVE_FINDING',data:payload});await refreshOnce();if(!centralFindings.some(f=>String(f.finding_id)===String(id)))throw new Error('Central belum mengonfirmasi Finding.');box.remove();alert('✅ Finding tersimpan di CENTRAL.')}catch(e){queue('SAVE_FINDING',payload);box.remove();alert('⚠️ CENTRAL belum mengonfirmasi. Finding masuk antrean pending.')}};
 }
-function dataUrl(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
+function dataUrl(file){return new Promise((res,rej)=>{if(!file||!file.type.startsWith('image/'))return rej(new Error('Bukan file gambar'));const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const MAX=1280;const scale=Math.min(1,MAX/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{alpha:false});ctx.drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',0.78))};img.onerror=()=>res(r.result);img.src=r.result};r.onerror=rej;r.readAsDataURL(file)})}
 function queue(action,data){try{const q=JSON.parse(localStorage.getItem(QUEUE)||'[]');q.push({action,data,queuedAt:Date.now()});localStorage.setItem(QUEUE,JSON.stringify(q))}catch(_){} }
 function post(payload){if(!API)return Promise.reject(new Error('Central Web App URL belum dikonfigurasi.'));return fetch(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}).then(()=>true)}
 async function getCentral(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await fetch(API+'?action=GET_FINDINGS&t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return Array.isArray(j.data)?j.data.map(normalize):[]}
-async function syncCentral(){msg('⏳ Mengambil Finding Notes dari CENTRAL...');try{const data=await getCentral();centralFindings=data;cacheWrite();render();msg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);await flushQueue();return true}catch(e){if(!navigator.onLine){centralFindings=cacheRead();render();msg('⚠️ OFFLINE — menampilkan cache terakhir (read-only).',false)}else{centralFindings=[];render();msg('❌ CENTRAL belum terhubung / gagal dibaca. Tidak memakai dummy atau patrolData.',false)}return false}}
-async function waitForCentral(id){for(let i=0;i<5;i++){await new Promise(r=>setTimeout(r,900));try{const ok=await syncCentral();if(ok&&centralFindings.some(f=>String(f.finding_id)===String(id)))return true}catch(_){} }return false}
-async function updateFinding(id){const f=centralFindings.find(x=>String(x.finding_id)===String(id));if(!f)return;const cardEl=document.querySelector('.fn-finding-card[data-finding-card="'+CSS.escape(String(id))+'"]');const description=cardEl?.querySelector('.fn-edit-content')?.value??f.description;const status=cardEl?.querySelector('input[data-status-id="'+CSS.escape(String(id))+'"]:checked')?.value??f.status;const payload={finding_id:f.finding_id,description,status,area_code:f.area_code,photo_url:f.photo_url,finder_name:f.finder_name};if(!navigator.onLine){queue('UPDATE_STATUS',payload);return alert('📦 Offline. Perubahan masuk antrean Central.')};try{msg('⏳ Mengirim perubahan ke CENTRAL...');await post({action:'SAVE_FINDING',data:payload});if(!(await waitForCentral(id)))throw new Error('not confirmed')}catch(_){queue('SAVE_FINDING',payload);alert('⚠️ Perubahan belum dikonfirmasi Central; masuk antrean pending.')}}
-async function deleteFinding(id){if(!confirm('Hapus Finding ini dari CENTRAL?'))return;if(!navigator.onLine){queue('DELETE_FINDING',{finding_id:id});return alert('📦 Offline. Penghapusan masuk antrean Central.')};try{msg('⏳ Menghapus Finding dari CENTRAL...');await post({action:'DELETE_FINDING',finding_id:id});const before=centralFindings.length;for(let i=0;i<5;i++){await new Promise(r=>setTimeout(r,700));await syncCentral();if(centralFindings.length<before&&!centralFindings.some(f=>String(f.finding_id)===String(id)))return}throw new Error('not confirmed')}catch(_){queue('DELETE_FINDING',{finding_id:id});alert('⚠️ Penghapusan belum dikonfirmasi Central; masuk antrean pending.')}}
-async function flushQueue(){if(!navigator.onLine||!API)return;let q=[];try{q=JSON.parse(localStorage.getItem(QUEUE)||'[]')}catch(_){}if(!q.length)return;const remain=[];for(const x of q){try{await post(x.action==='SAVE_FINDING'?{action:'SAVE_FINDING',data:x.data}:x.action==='DELETE_FINDING'?{action:'DELETE_FINDING',finding_id:x.data.finding_id}:{action:'UPDATE_STATUS',finding_id:x.data.finding_id,status:x.data.status});await new Promise(r=>setTimeout(r,800));const fresh=await getCentral();if(x.action==='DELETE_FINDING'?fresh.some(f=>String(f.finding_id)===String(x.data.finding_id)):x.action==='SAVE_FINDING'&&!fresh.some(f=>String(f.finding_id)===String(x.data.finding_id)))remain.push(x)}catch(_){remain.push(x)}}try{localStorage.setItem(QUEUE,JSON.stringify(remain))}catch(_){}centralFindings=await getCentral();cacheWrite();render()}
-function wire(){document.querySelectorAll('.fn-add-finding').forEach(b=>b.onclick=()=>openNew(b.dataset.area));document.querySelectorAll('.fn-save-edit').forEach(b=>b.onclick=()=>updateFinding(b.dataset.id));document.querySelectorAll('input[data-status-id]').forEach(r=>r.onchange=()=>updateFinding(r.dataset.statusId));document.querySelectorAll('.fn-delete').forEach(b=>b.onclick=()=>deleteFinding(b.dataset.id));document.querySelectorAll('.fn-gallery').forEach(b=>b.onclick=()=>document.querySelector('.fn-gallery-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-camera').forEach(b=>b.onclick=()=>document.querySelector('.fn-camera-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-gallery-input,.fn-camera-input').forEach(i=>i.onchange=async e=>{const f=centralFindings.find(x=>String(x.finding_id)===String(i.dataset.id));if(!f)return;const add=[];for(const file of Array.from(e.target.files||[]))if(file.type.startsWith('image/'))add.push(await dataUrl(file));const old=photosOf(f);const payload={...f,photo_url:JSON.stringify(old.concat(add))};try{await post({action:'SAVE_FINDING',data:payload});await waitForCentral(f.finding_id)}catch(_){queue('SAVE_FINDING',payload)}e.target.value=''})}
+let syncInFlight=null;
+async function syncCentral(){
+ if(syncInFlight)return syncInFlight;
+ syncInFlight=(async()=>{
+  msg('⏳ Mengambil Finding Notes dari CENTRAL...');
+  try{
+   const data=await getCentral();
+   centralFindings=data; cacheWrite(); render();
+   msg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);
+   if(navigator.onLine) await flushQueue();
+   return true;
+  }catch(e){
+   if(!navigator.onLine){centralFindings=cacheRead();render();msg('⚠️ OFFLINE — menampilkan cache terakhir (read-only).',false)}
+   else{centralFindings=[];render();msg('❌ CENTRAL belum terhubung / gagal dibaca. Tidak memakai dummy atau patrolData.',false)}
+   return false;
+  }finally{syncInFlight=null}
+ })();
+ return syncInFlight;
+}
+async function refreshOnce(){await new Promise(r=>setTimeout(r,450));return syncCentral()}
+async function updateFinding(id){
+ const f=centralFindings.find(x=>String(x.finding_id)===String(id)); if(!f)return;
+ const cardEl=document.querySelector('.fn-finding-card[data-finding-card="'+CSS.escape(String(id))+'"]');
+ const description=cardEl?.querySelector('.fn-edit-content')?.value??f.description;
+ const status=cardEl?.querySelector('input[data-status-id="'+CSS.escape(String(id))+'"]:checked')?.value??f.status;
+ if(!navigator.onLine){queue('SAVE_FINDING',{...f,description,status});return alert('📦 Offline. Perubahan masuk antrean Central.')}
+ try{
+  msg('⏳ Menyimpan perubahan ke CENTRAL...');
+  if(description!==f.description) await post({action:'SAVE_FINDING',data:{...f,description,status}});
+  else if(status!==f.status) await post({action:'UPDATE_STATUS',finding_id:f.finding_id,status});
+  else return;
+  await refreshOnce();
+ }catch(_){queue('SAVE_FINDING',{...f,description,status});alert('⚠️ Central belum mengonfirmasi. Perubahan masuk antrean pending.')}
+}
+async function deleteFinding(id){
+ if(!confirm('Hapus Finding ini dari CENTRAL?'))return;
+ if(!navigator.onLine){queue('DELETE_FINDING',{finding_id:id});return alert('📦 Offline. Penghapusan masuk antrean Central.')}
+ try{
+  msg('⏳ Menghapus Finding dari CENTRAL...');
+  await post({action:'DELETE_FINDING',finding_id:id});
+  await refreshOnce();
+  if(centralFindings.some(f=>String(f.finding_id)===String(id)))throw new Error('not confirmed');
+ }catch(_){queue('DELETE_FINDING',{finding_id:id});alert('⚠️ Central belum mengonfirmasi penghapusan. Masuk antrean pending.')}
+}
+async function flushQueue(){
+ if(!navigator.onLine||!API)return;
+ let q=[];try{q=JSON.parse(localStorage.getItem(QUEUE)||'[]')}catch(_){}
+ if(!q.length)return;
+ msg('⏳ Mengirim '+q.length+' perubahan pending ke CENTRAL...');
+ for(const x of q){try{
+  if(x.action==='SAVE_FINDING')await post({action:'SAVE_FINDING',data:x.data});
+  else if(x.action==='DELETE_FINDING')await post({action:'DELETE_FINDING',finding_id:x.data.finding_id});
+  else if(x.action==='UPDATE_STATUS')await post({action:'UPDATE_STATUS',finding_id:x.data.finding_id,status:x.data.status});
+  await new Promise(r=>setTimeout(r,250));
+ }catch(_){} }
+ await new Promise(r=>setTimeout(r,450));
+ try{
+  const fresh=await getCentral();
+  const remain=q.filter(x=>{const id=String(x.data?.finding_id||'');const found=fresh.find(f=>String(f.finding_id)===id);
+   if(x.action==='DELETE_FINDING')return !!found;
+   if(x.action==='SAVE_FINDING')return !found || String(found.updated_at||'')<String(x.data.updated_at||'');
+   return false;
+  });
+  centralFindings=fresh;cacheWrite();render();
+  localStorage.setItem(QUEUE,JSON.stringify(remain));
+ }catch(_){}
+}
+function wire(){document.querySelectorAll('.fn-add-finding').forEach(b=>b.onclick=()=>openNew(b.dataset.area));document.querySelectorAll('.fn-save-edit').forEach(b=>b.onclick=()=>updateFinding(b.dataset.id));document.querySelectorAll('input[data-status-id]').forEach(r=>r.onchange=()=>updateFinding(r.dataset.statusId));document.querySelectorAll('.fn-delete').forEach(b=>b.onclick=()=>deleteFinding(b.dataset.id));document.querySelectorAll('.fn-gallery').forEach(b=>b.onclick=()=>document.querySelector('.fn-gallery-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-camera').forEach(b=>b.onclick=()=>document.querySelector('.fn-camera-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-gallery-input,.fn-camera-input').forEach(i=>i.onchange=async e=>{const f=centralFindings.find(x=>String(x.finding_id)===String(i.dataset.id));if(!f)return;const add=[];for(const file of Array.from(e.target.files||[]))if(file.type.startsWith('image/'))add.push(await dataUrl(file));const old=photosOf(f);const payload={...f,photo_url:JSON.stringify(old.concat(add))};try{await post({action:'SAVE_FINDING',data:payload});await refreshOnce()}catch(_){queue('SAVE_FINDING',payload)}e.target.value=''})}
 function setup(){window.centralFindings=centralFindings;$('fnRefreshBtn')?.addEventListener('click',syncCentral);$('fnAddTopBtn')?.addEventListener('click',()=>openNew(''));render();window.addEventListener('online',syncCentral);setTimeout(syncCentral,300)}
 function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');$('sideNav')?.classList.remove('open');$('navOverlay')?.classList.remove('open');syncCentral()}
 window.STT_FINDING_NOTES={sync:syncCentral,open:openSection,get:()=>centralFindings.slice()};
