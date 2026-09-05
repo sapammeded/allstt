@@ -1856,7 +1856,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzXoTwljuQt2I_TU2EW1QwfVRsrppospCtRVpUttAvuUN3o2nJfxE2YTiJDpI8aybbT/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyjv_wRiMrM04Zd7wjzdrASvj3hT08Ow5Ix8DHlfROJyHNZai8G6RDsqlDS6n8rwX9c/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -4927,10 +4927,10 @@ function openNew(area){
  const photos=[]; const renderDraft=()=>{box.querySelector('.fn-new-photos').innerHTML=photos.map((x,i)=>'<div class="fn-photo-item"><img src="'+esc(x)+'"><button type="button" data-i="'+i+'">×</button></div>').join('');box.querySelectorAll('.fn-new-photos button').forEach(b=>b.onclick=()=>{photos.splice(Number(b.dataset.i),1);renderDraft()})};
  const add=async files=>{for(const file of Array.from(files||[])){if(file.type.startsWith('image/'))photos.push(await dataUrl(file))}renderDraft()};
  box.querySelector('.fn-new-camera').onclick=()=>box.querySelector('.fn-new-camera-input').click();box.querySelector('.fn-new-gallery').onclick=()=>box.querySelector('.fn-new-gallery-input').click();box.querySelector('.fn-new-camera-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-gallery-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-cancel').onclick=()=>box.remove();
- box.querySelector('.fn-new-save').onclick=async()=>{const area=box.querySelector('.fn-new-area').value.trim(),finder=box.querySelector('.fn-new-finder').value.trim(),description=box.querySelector('.fn-new-content').value;if(!area)return alert('AREA wajib diisi.');if(!description.trim())return alert('Finding Notes wajib diisi.');const now=new Date(),id='FIND-'+now.getTime()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();const payload={finding_id:id,area_code:area,photo_url:JSON.stringify(photos),description,finder_name:finder||'Petugas',status:'OPEN'};if(!navigator.onLine){queue('SAVE_FINDING',payload);box.remove();return alert('📦 Offline. Finding masuk antrean Central.')};try{msg('⏳ Menyimpan Finding ke CENTRAL...');await post({action:'SAVE_FINDING',data:payload});await refreshOnce();if(!centralFindings.some(f=>String(f.finding_id)===String(id)))throw new Error('Central belum mengonfirmasi Finding.');box.remove();alert('✅ Finding tersimpan di CENTRAL.')}catch(e){queue('SAVE_FINDING',payload);box.remove();alert('⚠️ CENTRAL belum mengonfirmasi. Finding masuk antrean pending.')}};
+ box.querySelector('.fn-new-save').onclick=async()=>{const area=box.querySelector('.fn-new-area').value.trim(),finder=box.querySelector('.fn-new-finder').value.trim(),description=box.querySelector('.fn-new-content').value;if(!area)return alert('AREA wajib diisi.');if(!description.trim())return alert('Finding Notes wajib diisi.');const now=new Date(),id='FIND-'+now.getTime()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();const payload={finding_id:id,area_code:area,photo_url:JSON.stringify(photos),description,finder_name:finder||'Petugas',status:'OPEN'};if(!navigator.onLine){queue('SAVE_FINDING',payload);box.remove();return alert('📦 Offline. Finding masuk antrean Central.')};try{msg('⏳ Mengirim Finding ke CENTRAL...');await post({action:'SAVE_FINDING',data:payload});box.remove();alert('✅ Finding dikirim ke CENTRAL.');await syncCentral();}catch(e){queue('SAVE_FINDING',payload);box.remove();alert('⚠️ Gagal mengirim ke CENTRAL. Finding masuk antrean pending.')}};
 }
 function dataUrl(file){return new Promise((res,rej)=>{if(!file||!file.type.startsWith('image/'))return rej(new Error('Bukan file gambar'));const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const MAX=1280;const scale=Math.min(1,MAX/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{alpha:false});ctx.drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',0.78))};img.onerror=()=>res(r.result);img.src=r.result};r.onerror=rej;r.readAsDataURL(file)})}
-function queue(action,data){try{const q=JSON.parse(localStorage.getItem(QUEUE)||'[]');q.push({action,data,queuedAt:Date.now()});localStorage.setItem(QUEUE,JSON.stringify(q))}catch(_){} }
+function queue(action,data){try{const q=JSON.parse(localStorage.getItem(QUEUE)||'[]');const id=String(data?.finding_id||'');const filtered=q.filter(x=>!(String(x.action)===String(action)&&id&&String(x.data?.finding_id||'')===id));filtered.push({action,data,queuedAt:Date.now()});localStorage.setItem(QUEUE,JSON.stringify(filtered))}catch(_){} }
 function post(payload){if(!API)return Promise.reject(new Error('Central Web App URL belum dikonfigurasi.'));return fetch(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}).then(()=>true)}
 async function getMeta(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await fetch(API+'?action=GET_META&t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return String(j.revision||'')}
 async function getCentral(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await fetch(API+'?action=GET_FINDINGS&t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return {findings:Array.isArray(j.data)?j.data.map(normalize):[],revision:String(j.revision||'')}}
@@ -4940,11 +4940,10 @@ async function syncCentral(){
  syncInFlight=(async()=>{
   try{
    if(!navigator.onLine){const c=cacheRead();centralFindings=c.findings;render();msg('⚠️ OFFLINE — menampilkan cache terakhir (read-only).',false);return false;}
-   // Pending dikirim dulu. Setelah itu cek revision CENTRAL yang sangat ringan.
-   await flushQueue();
+   const sent=await flushQueue();
    const serverRevision=await getMeta();
    const cached=cacheRead();
-   if(cached.revision && cached.revision===serverRevision){
+   if(cached.revision && cached.revision===serverRevision && !sent){
     centralFindings=cached.findings;render();
     msg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);
     return true;
@@ -4956,7 +4955,7 @@ async function syncCentral(){
    return true;
   }catch(e){
    if(!navigator.onLine){const c=cacheRead();centralFindings=c.findings;render();msg('⚠️ OFFLINE — menampilkan cache terakhir (read-only).',false)}
-   else{centralFindings=[];render();msg('❌ CENTRAL belum terhubung / gagal dibaca.',false)}
+   else{const c=cacheRead();centralFindings=c.findings;render();msg('❌ CENTRAL gagal dibaca. Cache terakhir ditampilkan.',false)}
    return false;
   }finally{syncInFlight=null}
  })();
@@ -4984,7 +4983,6 @@ async function deleteFinding(id){
   msg('⏳ Menghapus Finding dari CENTRAL...');
   await post({action:'DELETE_FINDING',finding_id:id});
   await refreshOnce();
-  if(centralFindings.some(f=>String(f.finding_id)===String(id)))throw new Error('not confirmed');
  }catch(_){queue('DELETE_FINDING',{finding_id:id});alert('⚠️ Central belum mengonfirmasi penghapusan. Masuk antrean pending.')}
 }
 async function flushQueue(){
