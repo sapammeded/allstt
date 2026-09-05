@@ -1856,7 +1856,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyjv_wRiMrM04Zd7wjzdrASvj3hT08Ow5Ix8DHlfROJyHNZai8G6RDsqlDS6n8rwX9c/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbx0Y10Mn4PhdsBEsBVtmDYR1JkMTBWOziieuZGwVlF0Xl-Vfq_qdAPyYkPg1ij9EgyV/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -1949,12 +1949,13 @@ const memoryManager = new MemoryManager();
   function openDB(){
     return new Promise((res) => {
       if(!('indexedDB' in window)) return res(null);
-      const rq = indexedDB.open(DB_NAME, 2);
+      const rq = indexedDB.open(DB_NAME, 3);
       rq.onupgradeneeded = (e)=>{
         const d = e.target.result;
         if(!d.objectStoreNames.contains(STORE_BLOBS)) d.createObjectStore(STORE_BLOBS);
         if(!d.objectStoreNames.contains(STORE_META)) d.createObjectStore(STORE_META);
         if(!d.objectStoreNames.contains(STORE_SYNC)) d.createObjectStore(STORE_SYNC);
+        if(!d.objectStoreNames.contains('findingPending')) d.createObjectStore('findingPending');
       };
       rq.onsuccess = ()=> { db = rq.result; res(db); };
       rq.onerror = ()=> res(null);
@@ -3732,579 +3733,215 @@ function setupSuperCleanup() {
     }
   }
 
-  // ==================== PDF GENERATION - PROFESSIONAL SECURITY REPORT ====================
-  document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
-    try{
-      const jsPDFCtor = window.jspdf?.jsPDF || window.jsPDF;
-      if(!jsPDFCtor) throw new Error('Mesin PDF belum siap. Buka aplikasi dengan internet aktif sekali untuk memuat jsPDF.');
+  // ==================== PDF GENERATION - CENTRAL FINDING NOTES CONTRACT ====================
+document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
+  try{
+    const jsPDFCtor = window.jspdf?.jsPDF || window.jsPDF;
+    if(!jsPDFCtor) throw new Error('Mesin PDF belum siap. Buka aplikasi dengan internet aktif sekali untuk memuat jsPDF.');
 
-      const areaEntries = Object.entries(patrolData || {}).filter(([,a])=>!!a);
-      const areas = areaEntries.map(([,a])=>a);
-      const totalPhotos = areas.reduce((n,a)=>n+(Array.isArray(a.photos)?a.photos.length:0),0);
-      if(!areas.length) throw new Error('Belum ada area patroli.');
-      if(!totalPhotos) throw new Error('Belum ada foto evidence patroli.');
+    const areaEntries = Object.entries(patrolData || {}).filter(([,a])=>!!a);
+    const areas = areaEntries.map(([,a])=>a);
+    const totalPhotos = areas.reduce((n,a)=>n+(Array.isArray(a.photos)?a.photos.length:0),0);
+    if(!areas.length) throw new Error('Belum ada area patroli.');
+    if(!totalPhotos) throw new Error('Belum ada foto evidence patroli.');
 
-      showOverlay('Membuat PRO Security Report...'); setOverlayProgress(3);
+    // Central is the only source used for Finding Notes in this report.
+    if(window.STT_FINDING_NOTES?.sync) await window.STT_FINDING_NOTES.sync();
+    const central = Array.isArray(window.STT_FINDING_NOTES?.get?.())
+      ? window.STT_FINDING_NOTES.get().map(f=>window.STT_FINDING_NOTES_NORMALIZE?window.STT_FINDING_NOTES_NORMALIZE(f):f)
+      : [];
 
-      const pdf = new jsPDFCtor({
-        orientation:'p',
-        unit:'mm',
-        format:'a4',
-        compress:true
-      });
+    showOverlay('Membuat PRO Security Report...'); setOverlayProgress(3);
 
-      const W = pdf.internal.pageSize.getWidth();
-      const H = pdf.internal.pageSize.getHeight();
-      const M = 14;
-      const BLUE = [20, 72, 145];
-      const TEXT = [42, 48, 58];
-      const MUTED = [105, 112, 122];
-      const LINE = [215, 220, 228];
-      const PANEL = [248, 250, 252];
+    const pdf = new jsPDFCtor({orientation:'p',unit:'mm',format:'a4',compress:true});
+    const W=pdf.internal.pageSize.getWidth(), H=pdf.internal.pageSize.getHeight(), M=14;
+    const BLUE=[20,72,145], TEXT=[42,48,58], MUTED=[105,112,122], LINE=[215,220,228], PANEL=[248,250,252];
+    const FIND_BG=[252,231,243], FIND_TEXT=[127,29,29], FIND_LINE=[244,114,182];
+    const petugas=(document.getElementById('petugasName')?.value||'Petugas').trim();
+    const tanggal=document.getElementById('tanggal')?.value||new Date().toISOString().slice(0,10);
+    const jam=document.getElementById('jam')?.value||new Date().toTimeString().slice(0,5);
+    const generated=new Date().toLocaleString('id-ID');
+    const officerName=(signatureName||localStorage.getItem('patrol_signature_name_v1')||petugas||'Petugas').trim();
+    const safe=v=>String(v??'').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80);
 
-      const petugas = (document.getElementById('petugasName')?.value || 'Petugas').trim();
-      const tanggal = document.getElementById('tanggal')?.value || new Date().toISOString().slice(0,10);
-      const jam = document.getElementById('jam')?.value || new Date().toTimeString().slice(0,5);
-      const generated = new Date().toLocaleString('id-ID');
-      const officerName = (signatureName || localStorage.getItem('patrol_signature_name_v1') || petugas || 'Petugas').trim();
-      const safe = v => String(v ?? '').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80);
-
-      async function photoData(p){
-        if(p && typeof p === 'object' && p.ref){
-          const b = await idbGet(STORE_BLOBS, p.ref);
-          return b ? await blobToBase64(b) : null;
-        }
-        if(typeof p === 'string') return p;
-        return null;
-      }
-
-      async function imageInfo(src){
-        const img = new Image();
-        img.src = src;
-        await img.decode();
-        return img;
-      }
-
-      async function addContain(src,x,y,maxW,maxH,formatHint){
-        const img = await imageInfo(src);
-        const ratio = Math.min(maxW/img.naturalWidth, maxH/img.naturalHeight);
-        const w = img.naturalWidth * ratio;
-        const h = img.naturalHeight * ratio;
-        const px = x + (maxW-w)/2;
-        const py = y + (maxH-h)/2;
-        const fmt = formatHint || (String(src).startsWith('data:image/png') ? 'PNG' : 'JPEG');
-        pdf.addImage(src,fmt,px,py,w,h,undefined,'FAST');
-        return {w,h};
-      }
-
-      function footer(){
-        pdf.setDrawColor(...LINE);
-        pdf.setLineWidth(0.35);
-        pdf.line(M,H-13,W-M,H-13);
-        pdf.setFont('helvetica','normal');
-        pdf.setFontSize(7);
-        pdf.setTextColor(...MUTED);
-        pdf.text(`Laporan Patroli Security • ${petugas}`,M,H-8);
-        pdf.text(`Halaman ${pdf.internal.getNumberOfPages()}`,W-M,H-8,{align:'right'});
-      }
-
-      function areaHeader(title){
-        // Compact official header on every content page.
-        const hLogo = 13;
-        const hY = 7;
-        const hLX = M;
-        const hRX = W-M-hLogo;
-
-        if(logoData){
-          try{
-            const img = new Image();
-            img.src = logoData;
-            // Decode is intentionally not awaited here; area pages remain synchronous-safe.
-            const fmt = String(logoData).startsWith('data:image/png') ? 'PNG' : 'JPEG';
-            pdf.addImage(logoData,fmt,hLX,hY,hLogo,hLogo,'AREA_LOGO_L','FAST');
-            pdf.addImage(logoDataRight,fmt,hRX,hY,hLogo,hLogo,'AREA_LOGO_R','FAST');
-          }catch(e){ console.warn('[PDF] Header logo:',e); }
-        }
-
-        pdf.setFont('helvetica','bold');
-        pdf.setFontSize(9);
-        pdf.setTextColor(...BLUE);
-        pdf.text(companyName || 'SECURITY PATROLI SYSTEM',W/2,13,{align:'center'});
-
-        pdf.setFont('helvetica','normal');
-        pdf.setFontSize(7);
-        pdf.setTextColor(...MUTED);
-        pdf.text(`Petugas: ${petugas}  •  ${tanggal}  •  ${jam}`,W/2,19,{align:'center'});
-
-        pdf.setFillColor(...BLUE);
-        pdf.roundedRect(M,25,W-2*M,15,2,2,'F');
-        pdf.setFont('helvetica','bold');
-        pdf.setFontSize(11);
-        pdf.setTextColor(255,255,255);
-        pdf.text(title,M+6,35,{baseline:'middle'});
-      }
-
-      // ==================== COVER — OFFICIAL LETTERHEAD ====================
-      // Professional cover: official letterhead at top, two identical/equal logos,
-      // officer portrait below it. No text/logo is ever drawn over the portrait.
-      const headerTop = 13;
-      const headerH = 43;
-      const logoBox = 24;
-      const leftLogoX = M + 2;
-      const rightLogoX = W - M - 2 - logoBox;
-      const logoY = headerTop + 3;
-
-      // Clean white official letterhead.
-      pdf.setFillColor(255,255,255);
-      pdf.rect(0,0,W,headerH+12,'F');
-
-      // Thin corporate rule.
-      pdf.setDrawColor(...BLUE);
-      pdf.setLineWidth(1.1);
-      pdf.line(M,45,W-M,45);
-
-      // Two logo boxes use EXACTLY the same dimensions.
-      pdf.setDrawColor(...LINE);
-      pdf.setLineWidth(0.35);
-      pdf.roundedRect(leftLogoX,logoY,logoBox,logoBox,2,2,'S');
-      pdf.roundedRect(rightLogoX,logoY,logoBox,logoBox,2,2,'S');
-
-      async function addLogoEqual(src,x,y,size,key){
-        if(!src) return false;
-        try{
-          const img = await imageInfo(src);
-          const ratio = Math.min((size-3)/img.naturalWidth,(size-3)/img.naturalHeight);
-          const iw = img.naturalWidth*ratio;
-          const ih = img.naturalHeight*ratio;
-          const px = x + (size-iw)/2;
-          const py = y + (size-ih)/2;
-          const fmt = String(src).startsWith('data:image/png') ? 'PNG' : 'JPEG';
-          pdf.addImage(src,fmt,px,py,iw,ih,key,'FAST');
-          return true;
-        }catch(e){
-          console.warn('[PDF] Logo tidak dapat dimuat:',e);
-          return false;
-        }
-      }
-
-      // Same active company logo is intentionally duplicated left/right.
-      await addLogoEqual(logoData,leftLogoX,logoY,logoBox,'LOGO_LEFT');
-      await addLogoEqual(logoDataRight,rightLogoX,logoY,logoBox,'LOGO_RIGHT');
-
-      // Official letterhead center block.
-      pdf.setFont('helvetica','bold');
-      pdf.setFontSize(16);
-      pdf.setTextColor(...BLUE);
-      pdf.text(companyName || 'NAMA PERUSAHAAN',W/2,20,{align:'center'});
-
-      pdf.setFont('helvetica','normal');
-      pdf.setFontSize(8.5);
-      pdf.setTextColor(...TEXT);
-      const addressLines = pdf.splitTextToSize(companyAddress || 'ALAMAT PERUSAHAAN', 92);
-      pdf.text(addressLines, W/2, 26, {align:'center'});
-      const contactY = 26 + (addressLines.length * 3.2) + 2;
-      pdf.setFont('helvetica','bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(...BLUE);
-      pdf.text('SECURITY PATROL & INCIDENT DOCUMENTATION',W/2,contactY,{align:'center'});
-
-      pdf.setFont('helvetica','bold');
-      pdf.setFontSize(18);
-      pdf.setTextColor(...TEXT);
-      pdf.text('LAPORAN PATROLI SECURITY',W/2,56,{align:'center'});
-
-      // Report identity block.
-      const metaY = 69;
-      pdf.setFillColor(...PANEL);
-      pdf.roundedRect(M,metaY,W-2*M,20,2,2,'F');
-
-      pdf.setFont('helvetica','bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(...BLUE);
-      pdf.text('IDENTITAS LAPORAN',M+6,metaY+7);
-
-      pdf.setFont('helvetica','normal');
-      pdf.setFontSize(9);
-      pdf.setTextColor(...TEXT);
-      pdf.text(`Petugas: ${petugas}`,M+6,metaY+14);
-      pdf.text(`Tanggal: ${tanggal}`,W/2,metaY+14,{align:'center'});
-      pdf.text(`Jam: ${jam}`,W-M-6,metaY+14,{align:'right'});
-
-      // ==================== OFFICER PORTRAIT ====================
-      const portraitX = 50;
-      const portraitY = 96;
-      const portraitW = W-100;
-      const portraitH = 116;
-
-      pdf.setDrawColor(...LINE);
-      pdf.setLineWidth(0.6);
-      pdf.roundedRect(portraitX,portraitY,portraitW,portraitH,2,2,'S');
-
-      if(officerPhotoDataUrl){
-        try{
-          await addContain(
-            officerPhotoDataUrl,
-            portraitX+3,
-            portraitY+3,
-            portraitW-6,
-            portraitH-6,
-            'JPEG'
-          );
-        }catch(e){
-          pdf.setFont('helvetica','normal');
-          pdf.setFontSize(9);
-          pdf.setTextColor(...MUTED);
-          pdf.text('FOTO WAJAH PETUGAS TIDAK DAPAT DIMUAT',
-                   W/2,portraitY+portraitH/2,{align:'center'});
-        }
-      }else{
-        pdf.setFont('helvetica','normal');
-        pdf.setFontSize(9);
-        pdf.setTextColor(...MUTED);
-        pdf.text('FOTO WAJAH PETUGAS BELUM DIAMBIL',
-                 W/2,portraitY+portraitH/2,{align:'center'});
-      }
-
-      // IMPORTANT: no title, logo, or generated text is placed on top of the photo.
-      pdf.setFont('helvetica','bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(...BLUE);
-      pdf.text('FOTO PETUGAS SECURITY',W/2,portraitY+portraitH+9,{align:'center'});
-
-      // Report title and officer details are BELOW the portrait, never over it.
-      pdf.setFont('helvetica','bold');
-      pdf.setFontSize(17);
-      pdf.setTextColor(...TEXT);
-      pdf.text('LAPORAN PATROLI SECURITY',W/2,portraitY+portraitH+23,{align:'center'});
-
-      pdf.setFont('helvetica','normal');
-      pdf.setFontSize(10);
-      pdf.setTextColor(...TEXT);
-      pdf.text(`Petugas: ${petugas}`,W/2,portraitY+portraitH+32,{align:'center'});
-      pdf.text(`Tanggal: ${tanggal}  •  Jam: ${jam}`,W/2,portraitY+portraitH+39,{align:'center'});
-
-      pdf.setFontSize(8);
-      pdf.setTextColor(...MUTED);
-      pdf.text(`Generated: ${generated}`,W/2,portraitY+portraitH+49,{align:'center'});
-
-      footer();
-
-      // ==================== AREA PAGES ====================
-      let done = 0;
-
-      for(let ai=0; ai<areas.length; ai++){
-        const area = areas[ai] || {};
-        const photos = Array.isArray(area.photos) ? area.photos : [];
-
-        pdf.addPage();
-        areaHeader(`AREA ${ai+1}: ${area.name || `Area ${ai+1}`}`);
-
-        let y = 47;
-        const activeFindings = getActiveFindingNotesForArea(area.name || `Area ${ai+1}`,areaEntries[ai]?.[0]);
-        if(activeFindings.length){
-          // HIGH VISIBILITY FINDING WARNING — intentionally large, bold and RED.
-          pdf.setFillColor(220,38,38);
-          pdf.roundedRect(M,y,W-2*M,12,2,2,'F');
-          pdf.setFont('helvetica','bold');
-          pdf.setFontSize(16);
-          pdf.setTextColor(255,255,255);
-          pdf.text(`⚠ FINDING NOTES AKTIF (${activeFindings.length})`,M+4,y+8.2);
-          y += 15;
-          for(const fn of activeFindings){
-            const fp=Array.isArray(fn.photos)?fn.photos.filter(p=>p&&p.data):[];
-            pdf.setFont('helvetica','bold');
-            pdf.setFontSize(14);
-            const lines=pdf.splitTextToSize(String(fn.content||''),W-2*M-10);
-            const statusLine=`STATUS: ${String(fn.status||'open').toUpperCase().replace('_',' ')} • DITEMUKAN: ${String(fn.foundAt||'-')} • PETUGAS: ${String(fn.foundBy||'-')}`;
-            const statusLines=pdf.splitTextToSize(statusLine,W-2*M-10);
-            const boxH=Math.max(34,11+lines.length*6.2+statusLines.length*4.2+10);
-            if(y+boxH>H-35){ footer(); pdf.addPage(); areaHeader(`AREA ${ai+1}: ${area.name || `Area ${ai+1}`} • FINDING NOTES`); y=47; }
-            // Entire finding card is red, not white.
-            pdf.setFillColor(220,38,38); pdf.setDrawColor(153,27,27); pdf.setLineWidth(1.4);
-            pdf.roundedRect(M,y,W-2*M,boxH,2.5,2.5,'FD');
-            pdf.setFont('helvetica','bold'); pdf.setFontSize(16); pdf.setTextColor(255,255,255);
-            pdf.text(lines,M+5,y+9);
-            let sy=y+9+(lines.length*6.2);
-            pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
-            pdf.text(statusLines,M+5,sy+4);
-            y += boxH+5;
-            for(const fpItem of fp){
-              const src=fpItem.data; const ph=48;
-              if(y+ph>H-28){ footer(); pdf.addPage(); areaHeader(`AREA ${ai+1}: ${area.name || `Area ${ai+1}`} • FINDING NOTES`); y=47; }
-              pdf.setFillColor(255,255,255); pdf.setDrawColor(220,38,38); pdf.rect(M,y,W-2*M,ph,'FD');
-              try{ await addContain(src,M+2,y+2,82,ph-4); }catch(e){}
-              y+=ph+4;
-            }
-          }
-        }
-        const notes = String(area.notes || area.globalDescription || '').trim();
-        if(notes){
-          pdf.setFont('helvetica','bold');
-          pdf.setFontSize(8.5);
-          pdf.setTextColor(...BLUE);
-          pdf.text('CATATAN AREA',M,y);
-          y += 5;
-          pdf.setFont('helvetica','normal');
-          pdf.setFontSize(8.5);
-          pdf.setTextColor(...TEXT);
-          const nl = pdf.splitTextToSize(notes,W-2*M);
-          pdf.text(nl,M,y);
-          y += nl.length*4.2 + 5;
-        }
-
-        // Two evidence cards per page, each photo left + description right.
-        // This intentionally follows the supplied reference PDF layout.
-        let i = 0;
-        while(i < photos.length){
-          if(y > H-112){
-            footer();
-            pdf.addPage();
-            areaHeader(`AREA ${ai+1}: ${area.name || `Area ${ai+1}`} • LANJUTAN`);
-            y = 47;
-          }
-
-          const rowH = 84;
-          const gap = 8;
-          const leftW = 88;
-          const rightX = M + 98;
-          const rightW = W - M - rightX;
-
-          pdf.setFillColor(...PANEL);
-          pdf.rect(M,y,leftW,rowH,'F');
-          pdf.rect(rightX,y,rightW,rowH,'F');
-
-          const src = await photoData(photos[i]);
-          if(src){
-            try{
-              await addContain(src,M+2,y+2,leftW-4,rowH-4);
-            }catch(e){
-              pdf.setFont('helvetica','normal');
-              pdf.setFontSize(8);
-              pdf.setTextColor(...MUTED);
-              pdf.text('Foto tidak dapat dimuat',M+leftW/2,y+42,{align:'center'});
-            }
-          }else{
-            pdf.setFont('helvetica','normal');
-            pdf.setFontSize(8);
-            pdf.setTextColor(...MUTED);
-            pdf.text('Foto tidak tersedia',M+leftW/2,y+42,{align:'center'});
-          }
-
-          pdf.setFont('helvetica','normal');
-          pdf.setFontSize(10);
-          pdf.setTextColor(...TEXT);
-          pdf.text(`Foto ${i+1}`,rightX+4,y+15);
-
-          const desc = String(area.descriptions?.[i] || DEFAULT_PATROL_DESCRIPTION).trim() || DEFAULT_PATROL_DESCRIPTION;
-          pdf.setFontSize(9);
-          pdf.setTextColor(...TEXT);
-          const dl = pdf.splitTextToSize(desc,rightW-8);
-          pdf.text(dl,rightX+4,y+27);
-
-          y += rowH + gap;
-          done++;
-          setOverlayProgress(5+Math.round((done/Math.max(1,totalPhotos))*70));
-          i++;
-        }
-
-        if(!photos.length){
-          pdf.setFont('helvetica','normal');
-          pdf.setFontSize(9);
-          pdf.setTextColor(...MUTED);
-          pdf.text('Tidak ada foto evidence pada area ini.',M,y);
-          y += 15;
-        }
-
-        // ==================== SIGNATURE / VERIFICATION ====================
-        // Keep signature on the final area page when it fits; otherwise add a clean final page.
-        const signatureH = 72;
-        if(y + signatureH > H-20){
-          footer();
-          pdf.addPage();
-          areaHeader('TANDA TANGAN DAN VERIFIKASI');
-          y = 62;
-        }else{
-          y += 3;
-          pdf.setDrawColor(...LINE);
-          pdf.setLineWidth(0.45);
-          pdf.line(M,y,W-M,y);
-          y += 8;
-          pdf.setFont('helvetica','normal');
-          pdf.setFontSize(11);
-          pdf.setTextColor(...TEXT);
-          pdf.text('TANDA TANGAN DAN VERIFIKASI',W/2,y,{align:'center'});
-          y += 8;
-        }
-
-        // Signature card on the right, mirroring the supplied reference.
-        const sigW = 70;
-        const sigH = 31;
-        const sigX = W-M-sigW-18;
-
-        if(signatureData){
-          try{
-            await addContain(signatureData,sigX,y,sigW,sigH,'PNG');
-          }catch(e){
-            console.warn('[PDF] Tanda tangan tidak dapat dimuat:',e);
-          }
-        }
-
-        pdf.setDrawColor(0,0,0);
-        pdf.setLineWidth(0.45);
-        pdf.line(sigX,y+sigH+2,sigX+sigW,y+sigH+2);
-
-        pdf.setFont('helvetica','normal');
-        pdf.setFontSize(10);
-        pdf.setTextColor(...TEXT);
-        pdf.text(officerName,sigX+sigW/2,y+sigH+10,{align:'center'});
-
-        pdf.setFont('helvetica','normal');
-        pdf.setFontSize(8);
-        pdf.setTextColor(0,115,45);
-        pdf.text('Tanda Tangan Digital Terverifikasi',sigX+sigW/2,y+sigH+19,{align:'center'});
-
-        // Officer identity note — explicit and always present.
-        pdf.setFont('helvetica','bold');
-        pdf.setFontSize(8);
-        pdf.setTextColor(...BLUE);
-        pdf.text('PETUGAS SECURITY',M,y+9);
-        pdf.setFont('helvetica','normal');
-        pdf.setFontSize(9);
-        pdf.setTextColor(...TEXT);
-        pdf.text(`Nama: ${petugas}`,M,y+17);
-        pdf.text(`Nama pada tanda tangan: ${officerName}`,M,y+24);
-
-        footer();
-      }
-
-      const filenameDate = /^\d{4}-\d{2}-\d{2}$/.test(tanggal)
-        ? tanggal.split('-').reverse().join('-')
-        : safe(tanggal || new Date().toISOString().slice(0,10));
-      const rawShift = String(document.getElementById('shift')?.value || '').trim();
-      const filenameShift = safe(rawShift.toUpperCase()).replace(/_+/g,'_') || 'SHIFT';
-      const filenameOfficer = safe(petugas || 'Petugas').replace(/_+/g,'_');
-      const filename = `${filenameOfficer}_${filenameDate}_${filenameShift}.pdf`;
-      const blob = pdf.output('blob');
-
-      // Download ke folder pilihan ADMIN bila browser mendukung; fallback tetap ke download bawaan.
-      const savedToFolder = await saveBlobToPreferredFolder(blob,filename);
-      if(!savedToFolder) pdf.save(filename);
-      // Always sync the exact same PDF blob to the configured cloud queue.
-      let syncId = null;
-      try{
-        syncId = await queuePdfForSync(blob,filename,{
-          petugas,tanggal,jam,
-          googleDriveFolderId:GOOGLE_DRIVE_FOLDER_ID
-        });
-        await syncPendingPdfs();
-      }catch(uploadErr){
-        console.warn('[PDF] Queue/upload error:',uploadErr);
-      }
-
-      const queued = syncId ? await idbGet(STORE_SYNC,syncId) : null;
-      await updateSyncCenter();
-
-      setOverlayProgress(100);
-      hideOverlay();
-
-      const msg = queued?.status === 'uploaded'
-        ? '☁️ Upload Google Drive berhasil.'
-        : (!navigator.onLine
-          ? '📴 Offline — PDF sudah didownload dan akan di-upload otomatis saat online.'
-          : '☁️ PDF sudah dimasukkan ke antrean upload dan akan diverifikasi.');
-
-      const autoStatus = document.getElementById('autoPdfStatus');
-      if(autoStatus) autoStatus.textContent = `📥 Download selesai • ${msg}`;
-
-      alert(`✅ PRO SECURITY REPORT SELESAI\n\n📥 ${filename}\n${msg}`);
-    }catch(e){
-      hideOverlay();
-      console.error('[PDF]',e);
-      alert('❌ Gagal membuat PDF: ' + (e?.message || e));
+    async function photoData(p){
+      if(p&&typeof p==='object'&&p.ref){const b=await idbGet(STORE_BLOBS,p.ref);return b?await blobToBase64(b):null;}
+      return typeof p==='string'?p:null;
     }
-  });
-
-  // ==================== WORD EXPORT — PHOTO + DESCRIPTION REPORT ====================
-  document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
-    try{
-      signatureData = signatureData || localStorage.getItem('patrol_signature_v1') || null;
-      signatureName = signatureName || localStorage.getItem('patrol_signature_name') || localStorage.getItem('patrol_signature_name_v1') || '';
-      if(!window.JSZip) throw new Error('Mesin Word DOCX belum siap. Pastikan internet aktif sekali untuk memuat JSZip.');
-      const areaEntries=Object.entries(patrolData||{}).filter(([,a])=>!!a); const areas=areaEntries.map(([,a])=>a);
-      const totalPhotos=areas.reduce((n,a)=>n+(Array.isArray(a.photos)?a.photos.length:0),0);
-      if(!areas.length) throw new Error('Belum ada area patroli.');
-      if(!totalPhotos) throw new Error('Belum ada foto evidence patroli.');
-      showOverlay('Membuat Word Security Report (.DOCX)...'); setOverlayProgress(5);
-      const petugas=(document.getElementById('petugasName')?.value||'Petugas').trim();
-      const tanggal=document.getElementById('tanggal')?.value||new Date().toISOString().slice(0,10);
-      const jam=document.getElementById('jam')?.value||new Date().toTimeString().slice(0,5);
-      const generated=new Date().toLocaleString('id-ID');
-      const safe=v=>String(v??'').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80);
-      const xml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-      const escText=v=>String(v??'').replace(/\r/g,'').split('\n');
-      async function photoDataWord(p){ if(p&&typeof p==='object'&&p.ref){const b=await idbGet(STORE_BLOBS,p.ref);return b?await blobToBase64(b):null;} return typeof p==='string'?p:null; }
-      const zip=new JSZip(); const media=[]; let rid=1;
-      function ridFor(data,mime){ if(!data)return null; const id='rIdImg'+(rid++); let raw=data; let ext='png'; const m=String(mime||((String(data).match(/^data:([^;]+);/)||[])[1])||'image/png').toLowerCase(); if(m.includes('jpeg')||m.includes('jpg'))ext='jpg'; else if(m.includes('webp'))ext='png'; else if(m.includes('gif'))ext='gif'; if(raw.includes(','))raw=raw.split(',').slice(1).join(','); media.push({id,path:`word/media/image${media.length+1}.${ext}`,raw,mime:m,ext}); return id; }
-      function pText(text,opt={}){const bold=opt.bold?'<w:b/>':'';const size=opt.size?`<w:sz w:val="${opt.size*2}"/><w:szCs w:val="${opt.size*2}"/>`:'';const color=opt.color?`<w:color w:val="${opt.color}"/>`:'';return `<w:p><w:pPr>${opt.align?`<w:jc w:val="${opt.align}"/>`:''}${opt.before?`<w:spacing w:before="${opt.before}"/>`:''}${opt.after?`<w:spacing w:after="${opt.after}"/>`:''}</w:pPr><w:r><w:rPr>${bold}${size}${color}</w:rPr><w:t xml:space="preserve">${xml(text)}</w:t></w:r></w:p>`}
-      function pLines(lines,opt={}){return lines.map((x,i)=>pText(x,{...opt,after:i===lines.length-1?(opt.after??80):0})).join('')}
-      function shadedBlock(content,shade='DC2626'){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:color="${shade}"/><w:left w:val="single" w:sz="8" w:color="${shade}"/><w:bottom w:val="single" w:sz="8" w:color="${shade}"/><w:right w:val="single" w:sz="8" w:color="${shade}"/></w:tblBorders></w:tblPr><w:tr><w:tc><w:tcPr><w:tcW w:w="9360" w:type="dxa"/><w:shd w:fill="${shade}"/><w:tcMar><w:top w:w="140" w:type="dxa"/><w:left w:w="160" w:type="dxa"/><w:bottom w:w="140" w:type="dxa"/><w:right w:w="160" w:type="dxa"/></w:tcMar></w:tcPr>${content}</w:tc></w:tr></w:tbl>`}
-      function imageRun(data,wCm,hCm){const id=ridFor(data);if(!id)return '';const cx=Math.round(wCm*360000),cy=Math.round(hCm*360000);return `<w:r><w:rPr></w:rPr><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${rid++}" name="STT Image"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="image"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`}
-      function pImage(data,w,h,align='center'){return `<w:p><w:pPr><w:jc w:val="${align}"/></w:pPr>${imageRun(data,w,h)}</w:p>`}
-      function cell(content,width,shade){return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${shade?`<w:shd w:fill="${shade}"/>`:''}</w:tcPr>${content}</w:tc>`}
-      function table(rows,widths){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DCE4"/><w:left w:val="single" w:sz="4" w:color="D7DCE4"/><w:bottom w:val="single" w:sz="4" w:color="D7DCE4"/><w:right w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideH w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideV w:val="single" w:sz="4" w:color="D7DCE4"/></w:tblBorders></w:tblPr>${rows.map(r=>`<w:tr>${r.map((c,i)=>cell(c,widths[i]||3120)).join('')}</w:tr>`).join('')}</w:tbl>`}
-      function headerBlock(){const l=logoData||'',r=logoDataRight||'';const lc=l?pImage(l,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9});const rc=r?pImage(r,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9});const center=pText(companyName||'NAMA PERUSAHAAN',{align:'center',bold:true,size:16,color:'144891',after:30})+pText(companyAddress||'ALAMAT PERUSAHAAN',{align:'center',size:9,after:30})+pText('SECURITY PATROL & INCIDENT DOCUMENTATION',{align:'center',bold:true,size:9,color:'144891',after:40});return table([[lc,center,rc]],[1800,5760,1800])+pText('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',{align:'center',size:8,color:'144891',after:100});}
-      let body=headerBlock()+pText('LAPORAN PATROLI SECURITY',{align:'center',bold:true,size:18,color:'144891',after:120});
-      body+=table([[pText(`Petugas: ${petugas}`,{bold:true,size:10}),pText(`Tanggal: ${tanggal}`,{bold:true,size:10}),pText(`Jam: ${jam}`,{bold:true,size:10})],[pText(`Generated: ${generated}`,{size:9}) ,pText('STT SECURITY REPORT',{bold:true,size:9,color:'144891'}),pText('CENTRAL FINDING NOTES',{bold:true,size:9,color:'144891'})]],[3120,3120,3120]);
-      if(officerPhotoDataUrl) body+=pText('FOTO PETUGAS SECURITY',{align:'center',bold:true,size:10,after:40})+pImage(officerPhotoDataUrl,6.0,6.5)+pText('',{after:100});
-      let done=0;
-      for(let ai=0;ai<areas.length;ai++){
-        const area=areas[ai]||{}; const photos=Array.isArray(area.photos)?area.photos:[]; body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+headerBlock()+pText(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`}`,{bold:true,size:18,color:'144891',after:100});
-        const af=getActiveFindingNotesForArea(area.name||`Area ${ai+1}`,areaEntries[ai]?.[0]);
-        if(af.length){for(const f of af){const fLines=escText(f.content||'');let fb=pText(`⚠ FINDING NOTES AKTIF`,{bold:true,size:16,color:'FFFFFF',after:50})+pLines(fLines,{bold:true,size:14,color:'FFFFFF',after:40})+pText(`STATUS: ${String(f.status||'open').toUpperCase().replace('_',' ')} • DITEMUKAN: ${f.foundAt||'-'} • PETUGAS: ${f.foundBy||'-'}`,{bold:true,size:9,color:'FFFFFF',after:70});body+=shadedBlock(fb,'DC2626');for(const ph of (Array.isArray(f.photos)?f.photos:[])){if(ph?.data)body+=pImage(ph.data,7.0,5.0)}}}
-        const notes=String(area.notes||area.globalDescription||'').trim();if(notes)body+=pText('CATATAN AREA',{bold:true,size:10,color:'144891',after:30})+pLines(escText(notes),{size:10,after:80});
-        for(let i=0;i<photos.length;i++){const src=await photoDataWord(photos[i]);const desc=String(area.descriptions?.[i]||DEFAULT_PATROL_DESCRIPTION).trim()||DEFAULT_PATROL_DESCRIPTION;const left=src?pImage(src,7.2,6.8):pText('Foto tidak tersedia',{align:'center',size:10});const right=pText(`Foto ${i+1}`,{bold:true,size:11,color:'144891',after:50})+pLines(escText(desc),{size:10,after:20});body+=table([[left,right]],[4680,4680])+pText('',{after:70});done++;setOverlayProgress(5+Math.round(done/Math.max(1,totalPhotos)*80));}
-        if(!photos.length)body+=pText('Tidak ada foto evidence pada area ini.',{size:10,after:80});
-      }
-      body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+headerBlock()+pText('TANDA TANGAN DAN VERIFIKASI',{bold:true,size:12,color:'144891',after:70});if(signatureData)body+=pImage(signatureData,5.0,2.2);body+=pText(signatureName||petugas,{bold:true,size:11,after:30})+pText('Tanda Tangan Digital Terverifikasi',{bold:true,size:9,color:'00732D',after:100})+pText(`Laporan dibuat oleh STT • ${generated}`,{size:8,color:'69707A'});
-      const sectPr=`<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr>`;
-      const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sectPr}</w:body></w:document>`;
-      zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`);
-      zip.folder('_rels').file('.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
-      const wr=zip.folder('word').folder('_rels');let rel=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
-      media.forEach(m=>rel+=`<Relationship Id="${m.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.path.split('/').pop()}"/>`);rel+='</Relationships>';wr.file('document.xml.rels',rel);
-      zip.folder('word').file('document.xml',documentXml);zip.folder('word').file('styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80"/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>`);
-      async function dataToBytes(data){
-        const str=String(data||'').trim();
-        if(!str) throw new Error('Data gambar kosong.');
-        if(/^data:/i.test(str)){
-          const comma=str.indexOf(',');
-          if(comma<0) throw new Error('Data URL gambar tidak valid.');
-          const meta=str.slice(0,comma).toLowerCase();
-          const payload=str.slice(comma+1);
-          if(meta.includes(';base64')){
-            let raw=payload.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');
-            try{raw=decodeURIComponent(raw);}catch(_){}
-            raw=raw.replace(/[^A-Za-z0-9+/=]/g,'');
-            while(raw.length%4) raw+='=';
-            try{return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}catch(e){
-              try{return new Uint8Array(await (await fetch(str)).arrayBuffer());}catch(_){throw new Error('Base64 gambar tidak valid.');}
-            }
-          }
-          try{return new Uint8Array(await (await fetch(str)).arrayBuffer());}catch(e){return new TextEncoder().encode(decodeURIComponent(payload));}
+    const centralPhotoCache=new Map();
+    async function fetchWithTimeout(url,opts={},timeout=15000){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeout);try{return await fetch(url,Object.assign({},opts,{signal:c.signal}));}finally{clearTimeout(t);}}
+    async function fetchRetry(url,opts={},timeout=15000,retries=2){let last;for(let i=0;i<=retries;i++){try{return await fetchWithTimeout(url,opts,timeout);}catch(e){last=e;if(i<retries)await new Promise(r=>setTimeout(r,500*(i+1)));}}throw last;}
+    async function centralPhotoData(url){
+      const src=String(url||'').trim();
+      if(!src) return null;
+      if(/^data:image\//i.test(src)) throw new Error('Central photo_url tidak boleh berisi data URL.');
+      if(centralPhotoCache.has(src)) return centralPhotoCache.get(src);
+      const promise=(async()=>{
+        try{
+          const r=await fetchRetry(src,{mode:'cors',cache:'force-cache'},15000,2);
+          if(!r.ok) throw new Error('HTTP '+r.status);
+          const blob=await r.blob();
+          return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
+        }catch(fetchErr){
+          const img=new Image(); img.crossOrigin='anonymous';
+          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=src;});
+          const c=document.createElement('canvas'); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
+          const ctx=c.getContext('2d'); ctx.drawImage(img,0,0); return c.toDataURL('image/jpeg',0.88);
         }
-        if(/^blob:|^https?:/i.test(str)) return new Uint8Array(await (await fetch(str)).arrayBuffer());
-        let raw=str.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');
-        try{raw=decodeURIComponent(raw);}catch(_){}
-        raw=raw.replace(/[^A-Za-z0-9+/=]/g,'');
-        while(raw.length%4) raw+='=';
-        try{return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}catch(e){throw new Error('Data gambar bukan Base64 yang valid.');}
-      }
-      for(const m of media){const bytes=await dataToBytes(m.raw);zip.folder('word').folder('media').file(m.path.split('/').pop(),bytes);}
-      setOverlayProgress(95);const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'});const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);const rawShift=String(document.getElementById('shift')?.value||'').trim();const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.docx`;const saved=await saveBlobToPreferredFolder(blob,filename);if(!saved){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}setOverlayProgress(100);hideOverlay();alert(`✅ WORD SECURITY REPORT DOCX SELESAI\n\n📥 ${filename}\n\nEditable: teks dan gambar dapat diedit/diganti di Microsoft Word.`);
-    }catch(e){hideOverlay();console.error('[WORD DOCX]',e);alert('❌ Gagal membuat Word DOCX: '+(e?.message||e));}
-  });
+      })();
+      centralPhotoCache.set(src,promise);
+      try{return await promise;}catch(e){centralPhotoCache.delete(src);throw e;}
+    }
+    function findingPhotos(f){
+      const v=f?.photo_url;
+      if(Array.isArray(v)) return v.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(x=>/^https?:\/\//i.test(x));
+      if(!v) return [];
+      try{const a=JSON.parse(String(v));return Array.isArray(a)?a.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(Boolean):[String(v)];}
+      catch(_){return String(v).split(',').map(x=>x.trim()).filter(x=>/^https?:\/\//i.test(x));}
+    }
+    function areaKey(v){return String(v??'').trim().replace(/\s+/g,' ').toLowerCase();}
+    function findingsForArea(name){const k=areaKey(name);return central.filter(f=>areaKey(f.area_code)===k&&String(f.finding_id||'').trim());}
+    function fmtDate(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleDateString('id-ID');}
+    function fmtTime(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+    function status(v){const s=String(v||'OPEN').toUpperCase();return ['OPEN','IN PROGRESS','FIXED'].includes(s)?s:s;}
+    function findingText(f){return String(f?.description??'').trim()||'-';}
 
-  // ==================== EVENT LISTENERS ====================
+    async function imageInfo(src){const img=new Image();img.src=src;await img.decode();return img;}
+    async function addContain(src,x,y,maxW,maxH,formatHint){
+      const img=await imageInfo(src); const ratio=Math.min(maxW/img.naturalWidth,maxH/img.naturalHeight);
+      const w=img.naturalWidth*ratio,h=img.naturalHeight*ratio,px=x+(maxW-w)/2,py=y+(maxH-h)/2;
+      const fmt=formatHint||(String(src).startsWith('data:image/png')?'PNG':'JPEG'); pdf.addImage(src,fmt,px,py,w,h,undefined,'FAST'); return {w,h};
+    }
+    function footer(){pdf.setFont('helvetica','normal');pdf.setFontSize(7);pdf.setTextColor(...MUTED);pdf.text(`STT • ${generated}`,W/2,H-8,{align:'center'});}
+    function areaHeader(title){
+      pdf.setFillColor(...PANEL);pdf.rect(0,0,W,42,'F');
+      pdf.setFont('helvetica','bold');pdf.setFontSize(9);pdf.setTextColor(...BLUE);pdf.text(companyName||'SECURITY PATROLI SYSTEM',W/2,13,{align:'center'});
+      pdf.setFont('helvetica','normal');pdf.setFontSize(7);pdf.setTextColor(...MUTED);pdf.text(`Petugas: ${petugas} • ${tanggal} • ${jam}`,W/2,19,{align:'center'});
+      pdf.setFillColor(...BLUE);pdf.roundedRect(M,25,W-2*M,15,2,2,'F');pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.setTextColor(255,255,255);pdf.text(title,M+6,35,{baseline:'middle'});
+    }
+
+    // COVER / LETTERHEAD — existing report structure retained.
+    pdf.setFillColor(255,255,255);pdf.rect(0,0,W,55,'F');
+    pdf.setDrawColor(...BLUE);pdf.setLineWidth(1.1);pdf.line(M,45,W-M,45);
+    const logoBox=24,leftLogoX=M+2,rightLogoX=W-M-2-logoBox,logoY=16;
+    pdf.setDrawColor(...LINE);pdf.setLineWidth(.35);pdf.roundedRect(leftLogoX,logoY,logoBox,logoBox,2,2,'S');pdf.roundedRect(rightLogoX,logoY,logoBox,logoBox,2,2,'S');
+    async function addLogoEqual(src,x,y,size,key){if(!src)return false;try{const img=await imageInfo(src);const r=Math.min((size-3)/img.naturalWidth,(size-3)/img.naturalHeight);const iw=img.naturalWidth*r,ih=img.naturalHeight*r;const px=x+(size-iw)/2,py=y+(size-ih)/2;pdf.addImage(src,String(src).startsWith('data:image/png')?'PNG':'JPEG',px,py,iw,ih,key,'FAST');return true;}catch(e){return false;}}
+    await addLogoEqual(logoData,leftLogoX,logoY,logoBox,'LOGO_LEFT'); await addLogoEqual(logoDataRight,rightLogoX,logoY,logoBox,'LOGO_RIGHT');
+    pdf.setFont('helvetica','bold');pdf.setFontSize(16);pdf.setTextColor(...BLUE);pdf.text(companyName||'NAMA PERUSAHAAN',W/2,20,{align:'center'});
+    pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);pdf.setTextColor(...TEXT);const addressLines=pdf.splitTextToSize(companyAddress||'ALAMAT PERUSAHAAN',92);pdf.text(addressLines,W/2,26,{align:'center'});
+    pdf.setFont('helvetica','bold');pdf.setFontSize(8);pdf.setTextColor(...BLUE);pdf.text('SECURITY PATROL & INCIDENT DOCUMENTATION',W/2,38,{align:'center'});
+    pdf.setFont('helvetica','bold');pdf.setFontSize(18);pdf.setTextColor(...TEXT);pdf.text('LAPORAN PATROLI SECURITY',W/2,56,{align:'center'});
+    const metaY=69;pdf.setFillColor(...PANEL);pdf.roundedRect(M,metaY,W-2*M,20,2,2,'F');pdf.setFont('helvetica','bold');pdf.setFontSize(8);pdf.setTextColor(...BLUE);pdf.text('IDENTITAS LAPORAN',M+6,metaY+7);
+    pdf.setFont('helvetica','normal');pdf.setFontSize(9);pdf.setTextColor(...TEXT);pdf.text(`Petugas: ${petugas}`,M+6,metaY+14);pdf.text(`Tanggal: ${tanggal}`,W/2,metaY+14,{align:'center'});pdf.text(`Jam: ${jam}`,W-M-6,metaY+14,{align:'right'});
+    const portraitX=50,portraitY=96,portraitW=W-100,portraitH=116;pdf.setDrawColor(...LINE);pdf.setLineWidth(.6);pdf.roundedRect(portraitX,portraitY,portraitW,portraitH,2,2,'S');
+    if(officerPhotoDataUrl){try{await addContain(officerPhotoDataUrl,portraitX+3,portraitY+3,portraitW-6,portraitH-6,'JPEG');}catch(_){}}
+    pdf.setFont('helvetica','bold');pdf.setFontSize(8);pdf.setTextColor(...BLUE);pdf.text('FOTO PETUGAS SECURITY',W/2,portraitY+portraitH+9,{align:'center'});
+    pdf.setFont('helvetica','bold');pdf.setFontSize(17);pdf.setTextColor(...TEXT);pdf.text('LAPORAN PATROLI SECURITY',W/2,portraitY+portraitH+23,{align:'center'});
+    pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.setTextColor(...TEXT);pdf.text(`Petugas: ${petugas}`,W/2,portraitY+portraitH+32,{align:'center'});pdf.text(`Tanggal: ${tanggal} • Jam: ${jam}`,W/2,portraitY+portraitH+39,{align:'center'});pdf.setFontSize(8);pdf.setTextColor(...MUTED);pdf.text(`Generated: ${generated}`,W/2,portraitY+portraitH+49,{align:'center'});footer();
+
+    let done=0;
+    for(let ai=0;ai<areas.length;ai++){
+      const area=areas[ai]||{}, photos=Array.isArray(area.photos)?area.photos:[];
+      pdf.addPage();areaHeader(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`}`);let y=47;
+      const findings=findingsForArea(area.name||`Area ${ai+1}`);
+      for(let fi=0;fi<findings.length;fi++){
+        const f=findings[fi], urls=findingPhotos(f);
+        // Photos FIRST, then Central Finding Notes directly underneath.
+        if(urls.length){
+          for(let pi=0;pi<urls.length;pi++){
+            const phH=58;
+            if(y+phH>H-28){footer();pdf.addPage();areaHeader(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`} • FINDING NOTES`);y=47;}
+            pdf.setFillColor(255,255,255);pdf.setDrawColor(...FIND_LINE);pdf.setLineWidth(.7);pdf.roundedRect(M,y,W-2*M,phH,2,2,'FD');
+            try{const data=await centralPhotoData(urls[pi]);if(data)await addContain(data,M+3,y+3,W-2*M-6,phH-6);}catch(e){pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor(...MUTED);pdf.text('Foto Finding tidak dapat dimuat',W/2,y+phH/2,{align:'center'});}
+            pdf.setFont('helvetica','normal');pdf.setFontSize(7);pdf.setTextColor(...MUTED);pdf.text(`Finding ${f.finding_id} • Foto ${pi+1}/${urls.length}`,W/2,y+phH-3,{align:'center'});y+=phH+5;
+          }
+        }
+        const descLines=pdf.splitTextToSize(findingText(f),W-2*M-12);
+        const meta1=`PENEMU: ${String(f.finder_name||'-')}`;
+        const meta2=`TANGGAL: ${fmtDate(f.created_at)}  •  JAM: ${fmtTime(f.created_at)}`;
+        const meta3=`STATUS: ${status(f.status)}`;
+        const meta4=`AREA: ${String(f.area_code||area.name||'-')}  •  ID: ${String(f.finding_id||'-')}`;
+        const noteH=16+descLines.length*5.1+18;
+        if(y+noteH>H-25){footer();pdf.addPage();areaHeader(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`} • FINDING NOTES`);y=47;}
+        pdf.setFillColor(...FIND_BG);pdf.setDrawColor(...FIND_LINE);pdf.setLineWidth(.9);pdf.roundedRect(M,y,W-2*M,noteH,2.5,2.5,'FD');
+        pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.setTextColor(...FIND_TEXT);pdf.text('FINDING NOTES',M+6,y+7);
+        pdf.setFont('helvetica','bold');pdf.setFontSize(10);pdf.setTextColor(...FIND_TEXT);pdf.text(descLines,M+6,y+14);
+        let my=y+14+descLines.length*5.1+3;pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);pdf.setTextColor(...FIND_TEXT);pdf.text(meta1,M+6,my);pdf.text(meta2,M+6,my+4.5);pdf.text(meta3,M+6,my+9);pdf.text(meta4,M+6,my+13.5);y+=noteH+9;
+      }
+      const notes=String(area.notes||area.globalDescription||'').trim();
+      if(notes){pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);pdf.setTextColor(...BLUE);pdf.text('CATATAN AREA',M,y);y+=5;pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);pdf.setTextColor(...TEXT);const nl=pdf.splitTextToSize(notes,W-2*M);pdf.text(nl,M,y);y+=nl.length*4.2+5;}
+      let i=0;while(i<photos.length){if(y>H-112){footer();pdf.addPage();areaHeader(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`} • LANJUTAN`);y=47;}const rowH=84,leftW=88,rightX=M+98,rightW=W-M-rightX;pdf.setFillColor(...PANEL);pdf.rect(M,y,leftW,rowH,'F');pdf.rect(rightX,y,rightW,rowH,'F');const src=await photoData(photos[i]);if(src){try{await addContain(src,M+2,y+2,leftW-4,rowH-4);}catch(_){}}pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.setTextColor(...TEXT);pdf.text(`Foto ${i+1}`,rightX+4,y+15);const desc=String(area.descriptions?.[i]||DEFAULT_PATROL_DESCRIPTION).trim()||DEFAULT_PATROL_DESCRIPTION;pdf.setFontSize(9);const dl=pdf.splitTextToSize(desc,rightW-8);pdf.text(dl,rightX+4,y+27);y+=rowH+8;done++;setOverlayProgress(5+Math.round((done/Math.max(1,totalPhotos))*70));i++;}
+      if(!photos.length){pdf.setFont('helvetica','normal');pdf.setFontSize(9);pdf.setTextColor(...MUTED);pdf.text('Tidak ada foto evidence pada area ini.',M,y);y+=15;}
+      const signatureH=72;if(y+signatureH>H-20){footer();pdf.addPage();areaHeader('TANDA TANGAN DAN VERIFIKASI');y=62;}else{y+=3;pdf.setDrawColor(...LINE);pdf.setLineWidth(.45);pdf.line(M,y,W-M,y);y+=8;pdf.setFont('helvetica','normal');pdf.setFontSize(11);pdf.setTextColor(...TEXT);pdf.text('TANDA TANGAN DAN VERIFIKASI',W/2,y,{align:'center'});y+=8;}
+      const sigW=70,sigH=31,sigX=W-M-sigW-18;if(signatureData){try{await addContain(signatureData,sigX,y,sigW,sigH,'PNG');}catch(_){}}pdf.setDrawColor(0,0,0);pdf.setLineWidth(.45);pdf.line(sigX,y+sigH+2,sigX+sigW,y+sigH+2);pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.setTextColor(...TEXT);pdf.text(officerName,sigX+sigW/2,y+sigH+10,{align:'center'});pdf.setFontSize(8);pdf.setTextColor(0,115,45);pdf.text('Tanda Tangan Digital Terverifikasi',sigX+sigW/2,y+sigH+19,{align:'center'});pdf.setFont('helvetica','bold');pdf.setFontSize(8);pdf.setTextColor(...BLUE);pdf.text('PETUGAS SECURITY',M,y+9);pdf.setFont('helvetica','normal');pdf.setFontSize(9);pdf.setTextColor(...TEXT);pdf.text(`Nama: ${petugas}`,M,y+17);pdf.text(`Nama pada tanda tangan: ${officerName}`,M,y+24);footer();
+    }
+    const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal||new Date().toISOString().slice(0,10));const rawShift=String(document.getElementById('shift')?.value||'').trim();const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';const filenameOfficer=safe(petugas||'Petugas').replace(/_+/g,'_');const filename=`${filenameOfficer}_${filenameDate}_${filenameShift}.pdf`;const blob=pdf.output('blob');const savedToFolder=await saveBlobToPreferredFolder(blob,filename);if(!savedToFolder)pdf.save(filename);
+    let syncId=null;try{syncId=await queuePdfForSync(blob,filename,{petugas,tanggal,jam,googleDriveFolderId:GOOGLE_DRIVE_FOLDER_ID});await syncPendingPdfs();}catch(uploadErr){console.warn('[PDF] Queue/upload error:',uploadErr);}const queued=syncId?await idbGet(STORE_SYNC,syncId):null;await updateSyncCenter();setOverlayProgress(100);hideOverlay();const msg=queued?.status==='uploaded'?'☁️ Upload Google Drive berhasil.':(!navigator.onLine?'📴 Offline — PDF sudah didownload dan akan di-upload otomatis saat online.':'☁️ PDF sudah dimasukkan ke antrean upload.');const autoStatus=document.getElementById('autoPdfStatus');if(autoStatus)autoStatus.textContent=`📥 Download selesai • ${msg}`;alert(`✅ PRO SECURITY REPORT SELESAI📥 ${filename}\n${msg}`);
+  }catch(e){hideOverlay();console.error('[PDF]',e);alert('❌ Gagal membuat PDF: '+(e?.message||e));}
+});
+
+// ==================== WORD EXPORT — CENTRAL FINDING NOTES CONTRACT ====================
+document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
+  try{
+    signatureData=signatureData||localStorage.getItem('patrol_signature_v1')||null;
+    signatureName=signatureName||localStorage.getItem('patrol_signature_name')||localStorage.getItem('patrol_signature_name_v1')||'';
+    if(!window.JSZip) throw new Error('Mesin Word DOCX belum siap. Pastikan internet aktif sekali untuk memuat JSZip.');
+    const areaEntries=Object.entries(patrolData||{}).filter(([,a])=>!!a),areas=areaEntries.map(([,a])=>a),totalPhotos=areas.reduce((n,a)=>n+(Array.isArray(a.photos)?a.photos.length:0),0);
+    if(!areas.length) throw new Error('Belum ada area patroli.'); if(!totalPhotos) throw new Error('Belum ada foto evidence patroli.');
+    if(window.STT_FINDING_NOTES?.sync) await window.STT_FINDING_NOTES.sync();
+    const central=Array.isArray(window.STT_FINDING_NOTES?.get?.())?window.STT_FINDING_NOTES.get().map(f=>window.STT_FINDING_NOTES_NORMALIZE?window.STT_FINDING_NOTES_NORMALIZE(f):f):[];
+    showOverlay('Membuat Word Security Report (.DOCX)...');setOverlayProgress(5);
+    const petugas=(document.getElementById('petugasName')?.value||'Petugas').trim(),tanggal=document.getElementById('tanggal')?.value||new Date().toISOString().slice(0,10),jam=document.getElementById('jam')?.value||new Date().toTimeString().slice(0,5),generated=new Date().toLocaleString('id-ID');
+    const safe=v=>String(v??'').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80),xml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'),escText=v=>String(v??'').replace(/\r/g,'').split('\n');
+    const zip=new JSZip(),media=[];let rid=1;
+    function areaKey(v){return String(v??'').trim().replace(/\s+/g,' ').toLowerCase();} function findingsForArea(name){const k=areaKey(name);return central.filter(f=>areaKey(f.area_code)===k&&String(f.finding_id||'').trim());}
+    function findingPhotos(f){const v=f?.photo_url;if(Array.isArray(v))return v.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(Boolean);if(!v)return [];try{const a=JSON.parse(String(v));return Array.isArray(a)?a.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(Boolean):[String(v)];}catch(_){return String(v).split(',').map(x=>x.trim()).filter(Boolean);}}
+    function fmtDate(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleDateString('id-ID');}function fmtTime(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}function status(v){return String(v||'OPEN').toUpperCase();}
+    function ridFor(data,mime){if(!data)return null;const id='rIdImg'+(rid++);let raw=String(data),ext='jpg',m=String(mime||((String(data).match(/^data:([^;]+);/)||[])[1])||'image/jpeg').toLowerCase();if(m.includes('png'))ext='png';else if(m.includes('gif'))ext='gif';if(raw.includes(','))raw=raw.split(',').slice(1).join(',');media.push({id,path:`word/media/image${media.length+1}.${ext}`,raw,mime:m,ext});return id;}
+    function pText(text,opt={}){const bold=opt.bold?'<w:b/>':'',size=opt.size?`<w:sz w:val="${opt.size*2}"/><w:szCs w:val="${opt.size*2}"/>`:'',color=opt.color?`<w:color w:val="${opt.color}"/>`:'';return `<w:p><w:pPr>${opt.align?`<w:jc w:val="${opt.align}"/>`:''}${opt.before?`<w:spacing w:before="${opt.before}"/>`:''}${opt.after?`<w:spacing w:after="${opt.after}"/>`:''}</w:pPr><w:r><w:rPr>${bold}${size}${color}</w:rPr><w:t xml:space="preserve">${xml(text)}</w:t></w:r></w:p>`;}
+    function pLines(lines,opt={}){return lines.map((x,i)=>pText(x,{...opt,after:i===lines.length-1?(opt.after??80):0})).join('');}
+    function imageRun(data,wCm,hCm){const id=ridFor(data);if(!id)return '';const cx=Math.round(wCm*360000),cy=Math.round(hCm*360000);return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${rid++}" name="STT Image"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="image"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;}
+    function pImage(data,w,h,align='center'){return `<w:p><w:pPr><w:jc w:val="${align}"/></w:pPr>${imageRun(data,w,h)}</w:p>`;}
+    function cell(content,width,shade){return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${shade?`<w:shd w:fill="${shade}"/>`:''}</w:tcPr>${content}</w:tc>`;}
+    function table(rows,widths){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DCE4"/><w:left w:val="single" w:sz="4" w:color="D7DCE4"/><w:bottom w:val="single" w:sz="4" w:color="D7DCE4"/><w:right w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideH w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideV w:val="single" w:sz="4" w:color="D7DCE4"/></w:tblBorders></w:tblPr>${rows.map(r=>`<w:tr>${r.map((c,i)=>cell(c,widths[i]||3120)).join('')}</w:tr>`).join('')}</w:tbl>`;}
+    function shadedBlock(content,shade='FCE7F3',border='F472B6'){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:color="${border}"/><w:left w:val="single" w:sz="8" w:color="${border}"/><w:bottom w:val="single" w:sz="8" w:color="${border}"/><w:right w:val="single" w:sz="8" w:color="${border}"/></w:tblBorders></w:tblPr><w:tr><w:tc><w:tcPr><w:tcW w:w="9360" w:type="dxa"/><w:shd w:fill="${shade}"/><w:tcMar><w:top w:w="160" w:type="dxa"/><w:left w:w="180" w:type="dxa"/><w:bottom w:w="160" w:type="dxa"/><w:right w:w="180" w:type="dxa"/></w:tcMar></w:tcPr>${content}</w:tc></w:tr></w:tbl>`;}
+    function headerBlock(){const l=logoData||'',r=logoDataRight||'',lc=l?pImage(l,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9}),rc=r?pImage(r,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9}),center=pText(companyName||'NAMA PERUSAHAAN',{align:'center',bold:true,size:16,color:'144891',after:30})+pText(companyAddress||'ALAMAT PERUSAHAAN',{align:'center',size:9,after:30})+pText('SECURITY PATROL & INCIDENT DOCUMENTATION',{align:'center',bold:true,size:9,color:'144891',after:40});return table([[lc,center,rc]],[1800,5760,1800])+pText('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',{align:'center',size:8,color:'144891',after:100});}
+    let body=headerBlock()+pText('LAPORAN PATROLI SECURITY',{align:'center',bold:true,size:18,color:'144891',after:120});body+=table([[pText(`Petugas: ${petugas}`,{bold:true,size:10}),pText(`Tanggal: ${tanggal}`,{bold:true,size:10}),pText(`Jam: ${jam}`,{bold:true,size:10})],[pText(`Generated: ${generated}`,{size:9}),pText('STT SECURITY REPORT',{bold:true,size:9,color:'144891'}),pText('CENTRAL FINDING NOTES',{bold:true,size:9,color:'144891'})]],[3120,3120,3120]);if(officerPhotoDataUrl)body+=pText('FOTO PETUGAS SECURITY',{align:'center',bold:true,size:10,after:40})+pImage(officerPhotoDataUrl,6.0,6.5)+pText('',{after:100});
+    let done=0;
+    for(let ai=0;ai<areas.length;ai++){
+      const area=areas[ai]||{},photos=Array.isArray(area.photos)?area.photos:[];body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+headerBlock()+pText(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`}`,{bold:true,size:18,color:'144891',after:100});
+      const af=findingsForArea(area.name||`Area ${ai+1}`);
+      for(const f of af){
+        const urls=findingPhotos(f);
+        // Central Finding Notes: all photos first, arranged as a compact 2-column grid.
+        if(urls.length){
+          for(let pi=0;pi<urls.length;pi+=2){
+            const a=urls[pi],b=urls[pi+1];
+            body+=table([[pImage(a,4.1,3.15)+pText(`Foto ${pi+1}/${urls.length}`,{align:'center',size:8,color:'69707A',after:25}),b?pImage(b,4.1,3.15)+pText(`Foto ${pi+2}/${urls.length}`,{align:'center',size:8,color:'69707A',after:25}):pText('',{after:25})]],[4680,4680])+pText('',{after:35});
+          }
+        } else {
+          body+=pText('Foto Finding tidak tersedia.',{align:'center',size:9,color:'69707A',after:45});
+        }
+        const descLines=escText(String(f.description??'').trim()||'-');
+        let fb=pText('FINDING NOTES',{bold:true,size:15,color:'7F1D1D',after:55})+pLines(descLines,{bold:true,size:11,color:'7F1D1D',after:55})+pText(`PENEMU: ${String(f.finder_name||'-')}`,{bold:true,size:9,color:'7F1D1D',after:25})+pText(`TANGGAL: ${fmtDate(f.created_at)} • JAM: ${fmtTime(f.created_at)}`,{bold:true,size:9,color:'7F1D1D',after:25})+pText(`STATUS: ${status(f.status)}`,{bold:true,size:9,color:'7F1D1D',after:25})+pText(`AREA: ${String(f.area_code||area.name||'-')} • ID: ${String(f.finding_id||'-')}`,{bold:true,size:9,color:'7F1D1D',after:60});
+        body+=shadedBlock(fb,'FCE7F3','F472B6');
+      }
+      const notes=String(area.notes||area.globalDescription||'').trim();if(notes)body+=pText('CATATAN AREA',{bold:true,size:10,color:'144891',after:30})+pLines(escText(notes),{size:10,after:80});
+      for(let i=0;i<photos.length;i++){const src=await photoDataWord(photos[i]);const desc=String(area.descriptions?.[i]||DEFAULT_PATROL_DESCRIPTION).trim()||DEFAULT_PATROL_DESCRIPTION;const left=src?pImage(src,7.2,6.8):pText('Foto tidak tersedia',{align:'center',size:10});const right=pText(`Foto ${i+1}`,{bold:true,size:11,color:'144891',after:50})+pLines(escText(desc),{size:10,after:20});body+=table([[left,right]],[4680,4680])+pText('',{after:70});done++;setOverlayProgress(5+Math.round(done/Math.max(1,totalPhotos)*80));}
+      if(!photos.length)body+=pText('Tidak ada foto evidence pada area ini.',{size:10,after:80});
+    }
+    body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+headerBlock()+pText('TANDA TANGAN DAN VERIFIKASI',{bold:true,size:12,color:'144891',after:70});if(signatureData)body+=pImage(signatureData,5.0,2.2);body+=pText(signatureName||petugas,{bold:true,size:11,after:30})+pText('Tanda Tangan Digital Terverifikasi',{bold:true,size:9,color:'00732D',after:100})+pText(`Laporan dibuat oleh STT • ${generated}`,{size:8,color:'69707A'});
+    const sectPr='<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr>';const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sectPr}</w:body></w:document>`;
+    zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>`+'</Types>');zip.folder('_rels').file('.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+    const wr=zip.folder('word').folder('_rels');let rel=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;media.forEach(m=>rel+=`<Relationship Id="${m.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.path.split('/').pop()}"/>`);rel+='</Relationships>';wr.file('document.xml.rels',rel);zip.folder('word').file('document.xml',documentXml);zip.folder('word').file('styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80"/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>`);
+    async function dataToBytes(data){const str=String(data||'').trim();if(!str)throw new Error('Data gambar kosong.');if(/^data:/i.test(str)){const comma=str.indexOf(',');if(comma<0)throw new Error('Data URL gambar tidak valid.');const meta=str.slice(0,comma).toLowerCase(),payload=str.slice(comma+1);if(meta.includes(';base64')){let raw=payload.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');try{raw=decodeURIComponent(raw)}catch(_){}while(raw.length%4)raw+='=';return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}return new Uint8Array(await (await fetch(str)).arrayBuffer());}if(/^https?:/i.test(str))return new Uint8Array(await (await fetchRetry(str,{mode:'cors',cache:'force-cache'},15000,2)).arrayBuffer());throw new Error('Sumber gambar Word harus URL Central atau data lokal yang valid.');}
+    for(const m of media){const bytes=await dataToBytes(m.raw);zip.folder('word').folder('media').file(m.path.split('/').pop(),bytes);}setOverlayProgress(95);const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'});const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);const rawShift=String(document.getElementById('shift')?.value||'').trim();const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.docx`;const saved=await saveBlobToPreferredFolder(blob,filename);if(!saved){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}setOverlayProgress(100);hideOverlay();alert(`✅ WORD SECURITY REPORT DOCX SELESAI📥 ${filename}Editable: teks dan gambar dapat diedit/diganti di Microsoft Word.`);
+  }catch(e){hideOverlay();console.error('[WORD DOCX]',e);alert('❌ Gagal membuat Word DOCX: '+(e?.message||e));}
+});
+
+
+
+// ==================== EVENT LISTENERS ====================
 document.getElementById('clearBtn')?.addEventListener('click', async ()=>{
   if(!confirm('Reset semua data lokal? Semua area dan foto akan dihapus!')) return;
   // ... kode yang sudah ada ...
@@ -4598,7 +4235,6 @@ renderAreas();
 })();
 </script>
 
-\n\n
 <!-- ALLSTT STARTUP + FACE CAMERA DOUBLE-TAP FIX -->
 
 
@@ -4889,130 +4525,56 @@ renderAreas();
   <div class="atm-add"><b style="font-size:18px">➕ CUSTOM / TAMBAH AREA</b><input id="sttAreaTemplateNewName" type="text" placeholder="Contoh: SECURITY, ACDC ROOM 2, ROOF TOP..."><button type="button" id="sttAreaTemplateAddBtn" class="btn btn-primary" style="width:100%">SIMPAN TEMPLATE AREA KE CENTRAL</button></div>
 </div></div>
 
-<script id="STT_CENTRAL_FINDING_NOTES_CENTRAL_V9">
+<script id="STT_CENTRAL_FINDING_NOTES_V16">
 (function(){'use strict';
 const API=(typeof PDF_UPLOAD_URL==='string'&&PDF_UPLOAD_URL.trim())?PDF_UPLOAD_URL.trim():'';
-const CACHE='STT_FINDING_CENTRAL_CACHE_V11', QUEUE='STT_FINDING_PENDING_QUEUE_V11';
-let centralFindings=[], draftPhotos=[];
+const CACHE='STT_FINDING_CENTRAL_CACHE_V16';
+const PENDING_DB='patrol_db_v1', PENDING_STORE='findingPending';
+const REQUEST_TIMEOUT=12000, UPLOAD_TIMEOUT=20000, RETRIES=2;
+let centralFindings=[], syncInFlight=null, pendingDb=null, setupDone=false, onlineHandler=null;
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-function msg(t,good){const e=$('fnSyncStatus');if(e){e.textContent=t;e.style.color=good?'#059669':'#b45309'}}
-function cacheWrite(revision){try{localStorage.setItem(CACHE,JSON.stringify({findings:centralFindings,revision:String(revision||''),updatedAt:Date.now()}))}catch(_){} }
-function cacheRead(){try{const x=JSON.parse(localStorage.getItem(CACHE)||'{}');return {findings:Array.isArray(x.findings)?x.findings:[],revision:String(x.revision||'')}}catch(_){return {findings:[],revision:''}}}
-function normalize(f){return {finding_id:String(f.finding_id??f.id??''),area_code:String(f.area_code??f.area??''),photo_url:f.photo_url??f.photoUrl??'',description:String(f.description??f.content??''),finder_name:String(f.finder_name??f.foundBy??'-'),created_at:f.created_at??f.createdAt??'',status:String(f.status??'OPEN').toUpperCase(),updated_at:f.updated_at??f.updatedAt??''}}
-function photosOf(f){let p=f.photo_url;if(Array.isArray(p))return p; if(!p)return []; try{const x=JSON.parse(p);return Array.isArray(x)?x:(x?[x]:[])}catch(_){return String(p).split(',').map(x=>x.trim()).filter(Boolean)}}
-function datePart(v){if(!v)return '-';try{return new Date(v).toLocaleDateString('id-ID')}catch(_){return String(v)}}
-function timePart(v){if(!v)return '-';try{return new Date(v).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}catch(_){return String(v)}}
-function statusClass(s){return String(s).toUpperCase()==='FIXED'?'fixed-status':''}
-function photoHtml(f){const ps=photosOf(f);if(!ps.length)return '';return '<div class="fn-photo-grid">'+ps.map((p,i)=>{const src=typeof p==='string'?p:(p?.url||p?.data||'');return src?'<div class="fn-photo-item"><img src="'+esc(src)+'" alt="Finding photo"><button type="button" data-photo-index="'+i+'" data-id="'+esc(f.finding_id)+'" class="fn-remove-photo">×</button></div>':''}).join('')+'</div>'}
-function render(){
- const root=$('fnAreaCards'); if(!root)return;
- window.centralFindings=centralFindings.slice();
- if(!centralFindings.length){root.innerHTML='<div class="fn-empty">Belum ada Finding Notes di CENTRAL.</div>';return}
- const groups=new Map();
- centralFindings.forEach(f=>{const key=f.area_code||'UNASSIGNED';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(f)});
- root.innerHTML=Array.from(groups.entries()).map(([area,list])=>{
-   const active=list.filter(f=>String(f.status).toUpperCase()!=='FIXED').length;
-   return '<div class="fn-area-block"><div class="fn-area-head"><div><div class="fn-area-title">'+esc(area)+'</div><div class="fn-area-count">'+list.length+' Finding • '+active+' aktif</div></div><button type="button" class="btn btn-primary fn-add-finding" data-area="'+esc(area)+'">➕ TAMBAH FINDING</button></div>'+(active?'<div class="fn-red-warning">⚠ FINDING AKTIF DI AREA INI: '+active+'</div>':'')+list.map(card).join('')+'</div>'
- }).join(''); wire();
+const areaKey=v=>String(v??'').trim().replace(/\s+/g,' ').toLowerCase();
+const normalize=f=>({finding_id:String(f?.finding_id??''),area_code:String(f?.area_code??''),photo_url:Array.isArray(f?.photo_url)?f.photo_url:(f?.photo_url||''),description:String(f?.description??''),finder_name:String(f?.finder_name??''),created_at:f?.created_at??'',status:['OPEN','IN PROGRESS','FIXED'].includes(String(f?.status??'OPEN').toUpperCase())?String(f?.status??'OPEN').toUpperCase():'OPEN',updated_at:f?.updated_at??''});
+function photosOf(f){const v=f?.photo_url;if(Array.isArray(v))return v.filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x));if(!v)return [];try{const a=JSON.parse(String(v));return Array.isArray(a)?a.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(x=>/^https?:\/\//i.test(x)):[]}catch(_){return String(v).split(',').map(x=>x.trim()).filter(x=>/^https?:\/\//i.test(x));}}
+function msg(t,good){const e=$('fnSyncStatus');if(e){e.textContent=t;e.style.color=good?'#059669':'#b45309';}}
+function progress(text,percent){try{if(typeof showOverlay==='function'){showOverlay(text);if(typeof setOverlayProgress==='function')setOverlayProgress(Math.max(0,Math.min(100,percent)));}}catch(_){} }
+function closeProgress(){try{if(typeof hideOverlay==='function')hideOverlay();}catch(_){} }
+function cacheWrite(revision){try{localStorage.setItem(CACHE,JSON.stringify({findings:centralFindings,revision:String(revision||''),updatedAt:Date.now()}));}catch(_){}
 }
-function card(f){
- const fixed=String(f.status).toUpperCase()==='FIXED';
- return '<div class="fn-finding-card '+(fixed?'fixed':'')+'" data-finding-card="'+esc(f.finding_id)+'"><div class="fn-finding-title">FINDING '+esc(f.finding_id)+'</div><div class="fn-meta">AREA: <b>'+esc(f.area_code)+'</b><br>PENEMU: <b>'+esc(f.finder_name)+'</b><br>TANGGAL: <b>'+esc(datePart(f.created_at))+'</b> • JAM: <b>'+esc(timePart(f.created_at))+'</b></div><div class="fn-status '+statusClass(f.status)+'"><b>STATUS</b><label><input type="radio" name="st_'+esc(f.finding_id)+'" value="OPEN" '+(String(f.status).toUpperCase()==='OPEN'?'checked':'')+' data-status-id="'+esc(f.finding_id)+'"> OPEN</label><label><input type="radio" name="st_'+esc(f.finding_id)+'" value="IN PROGRESS" '+(String(f.status).toUpperCase()==='IN PROGRESS'?'checked':'')+' data-status-id="'+esc(f.finding_id)+'"> IN PROGRESS</label><label><input type="radio" name="st_'+esc(f.finding_id)+'" value="FIXED" '+(fixed?'checked':'')+' data-status-id="'+esc(f.finding_id)+'"> FIXED</label></div><label class="fn-new-label">FINDING NOTES</label><textarea class="fn-notes-box fn-edit-content" data-id="'+esc(f.finding_id)+'">'+esc(f.description)+'</textarea>'+photoHtml(f)+'<div class="fn-photo-actions"><button type="button" class="btn btn-danger fn-camera" data-id="'+esc(f.finding_id)+'">📷 KAMERA</button><button type="button" class="btn btn-warning fn-gallery" data-id="'+esc(f.finding_id)+'">🖼 GALERI</button><button type="button" class="btn btn-primary fn-save-edit" data-id="'+esc(f.finding_id)+'">💾 SIMPAN</button><button type="button" class="btn btn-danger fn-delete" data-id="'+esc(f.finding_id)+'">🗑 HAPUS</button></div><input type="file" accept="image/*" capture="environment" multiple class="fn-camera-input" data-id="'+esc(f.finding_id)+'" style="display:none"><input type="file" accept="image/*" multiple class="fn-gallery-input" data-id="'+esc(f.finding_id)+'" style="display:none"></div>'
-}
-function openNew(area){
- const areaName=area||''; const box=document.createElement('div');box.className='fn-new-box';
- box.innerHTML='<label class="fn-new-label">TAMBAH FINDING KE CENTRAL</label><input class="fn-new-area" value="'+esc(areaName)+'" placeholder="AREA / AREA CODE" style="width:100%;box-sizing:border-box;padding:12px;border:2px solid #2563eb;border-radius:10px;font-size:18px;font-weight:800;margin-bottom:10px"><input class="fn-new-finder" value="'+esc(String($('petugasName')?.value||'Petugas'))+'" placeholder="Nama Penemu" style="width:100%;box-sizing:border-box;padding:12px;border:2px solid #94a3b8;border-radius:10px;font-size:18px;font-weight:800;margin-bottom:10px"><textarea class="fn-new-content" placeholder="Tulis Finding Notes bebas."></textarea><div class="fn-photo-grid fn-new-photos"></div><div class="fn-photo-actions"><button type="button" class="btn btn-danger fn-new-camera">📷 KAMERA</button><button type="button" class="btn btn-warning fn-new-gallery">🖼 GALERI</button><button type="button" class="btn btn-primary fn-new-save">☁️ SIMPAN KE CENTRAL</button><button type="button" class="btn btn-ghost fn-new-cancel">BATAL</button></div><input type="file" accept="image/*" capture="environment" multiple class="fn-new-camera-input" style="display:none"><input type="file" accept="image/*" multiple class="fn-new-gallery-input" style="display:none">';
- $('fnAreaCards').prepend(box); box.scrollIntoView({behavior:'smooth',block:'center'});
- const photos=[]; const renderDraft=()=>{box.querySelector('.fn-new-photos').innerHTML=photos.map((x,i)=>'<div class="fn-photo-item"><img src="'+esc(x)+'"><button type="button" data-i="'+i+'">×</button></div>').join('');box.querySelectorAll('.fn-new-photos button').forEach(b=>b.onclick=()=>{photos.splice(Number(b.dataset.i),1);renderDraft()})};
- const add=async files=>{for(const file of Array.from(files||[])){if(file.type.startsWith('image/'))photos.push(await dataUrl(file))}renderDraft()};
- box.querySelector('.fn-new-camera').onclick=()=>box.querySelector('.fn-new-camera-input').click();box.querySelector('.fn-new-gallery').onclick=()=>box.querySelector('.fn-new-gallery-input').click();box.querySelector('.fn-new-camera-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-gallery-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-cancel').onclick=()=>box.remove();
- box.querySelector('.fn-new-save').onclick=async()=>{const area=box.querySelector('.fn-new-area').value.trim(),finder=box.querySelector('.fn-new-finder').value.trim(),description=box.querySelector('.fn-new-content').value;if(!area)return alert('AREA wajib diisi.');if(!description.trim())return alert('Finding Notes wajib diisi.');const now=new Date(),id='FIND-'+now.getTime()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();const payload={finding_id:id,area_code:area,photo_url:JSON.stringify(photos),description,finder_name:finder||'Petugas',status:'OPEN'};if(!navigator.onLine){queue('SAVE_FINDING',payload);box.remove();return alert('📦 Offline. Finding masuk antrean Central.')};try{msg('⏳ Mengirim Finding ke CENTRAL...');await post({action:'SAVE_FINDING',data:payload});box.remove();alert('✅ Finding dikirim ke CENTRAL.');await syncCentral();}catch(e){queue('SAVE_FINDING',payload);box.remove();alert('⚠️ Gagal mengirim ke CENTRAL. Finding masuk antrean pending.')}};
-}
-function dataUrl(file){return new Promise((res,rej)=>{if(!file||!file.type.startsWith('image/'))return rej(new Error('Bukan file gambar'));const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const MAX=1280;const scale=Math.min(1,MAX/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{alpha:false});ctx.drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',0.78))};img.onerror=()=>res(r.result);img.src=r.result};r.onerror=rej;r.readAsDataURL(file)})}
-function queue(action,data){try{const q=JSON.parse(localStorage.getItem(QUEUE)||'[]');const id=String(data?.finding_id||'');const filtered=q.filter(x=>!(String(x.action)===String(action)&&id&&String(x.data?.finding_id||'')===id));filtered.push({action,data,queuedAt:Date.now()});localStorage.setItem(QUEUE,JSON.stringify(filtered))}catch(_){} }
-function post(payload){if(!API)return Promise.reject(new Error('Central Web App URL belum dikonfigurasi.'));return fetch(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}).then(()=>true)}
-async function getMeta(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await fetch(API+'?action=GET_META&t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return String(j.revision||'')}
-async function getCentral(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await fetch(API+'?action=GET_FINDINGS&t='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return {findings:Array.isArray(j.data)?j.data.map(normalize):[],revision:String(j.revision||'')}}
-let syncInFlight=null;
-async function syncCentral(){
- if(syncInFlight)return syncInFlight;
- syncInFlight=(async()=>{
-  try{
-   if(!navigator.onLine){const c=cacheRead();centralFindings=c.findings;render();msg('⚠️ OFFLINE — menampilkan cache terakhir (read-only).',false);return false;}
-   const sent=await flushQueue();
-   const serverRevision=await getMeta();
-   const cached=cacheRead();
-   if(cached.revision && cached.revision===serverRevision && !sent){
-    centralFindings=cached.findings;render();
-    msg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);
-    return true;
-   }
-   msg('⏳ Mengambil data terbaru dari CENTRAL...');
-   const fresh=await getCentral();
-   centralFindings=fresh.findings;cacheWrite(fresh.revision||serverRevision);render();
-   msg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);
-   return true;
-  }catch(e){
-   if(!navigator.onLine){const c=cacheRead();centralFindings=c.findings;render();msg('⚠️ OFFLINE — menampilkan cache terakhir (read-only).',false)}
-   else{const c=cacheRead();centralFindings=c.findings;render();msg('❌ CENTRAL gagal dibaca. Cache terakhir ditampilkan.',false)}
-   return false;
-  }finally{syncInFlight=null}
- })();
- return syncInFlight;
-}
-async function refreshOnce(){return syncCentral()}
-async function updateFinding(id){
- const f=centralFindings.find(x=>String(x.finding_id)===String(id)); if(!f)return;
- const cardEl=document.querySelector('.fn-finding-card[data-finding-card="'+CSS.escape(String(id))+'"]');
- const description=cardEl?.querySelector('.fn-edit-content')?.value??f.description;
- const status=cardEl?.querySelector('input[data-status-id="'+CSS.escape(String(id))+'"]:checked')?.value??f.status;
- if(!navigator.onLine){queue('SAVE_FINDING',{...f,description,status});return alert('📦 Offline. Perubahan masuk antrean Central.')}
- try{
-  msg('⏳ Menyimpan perubahan ke CENTRAL...');
-  if(description!==f.description) await post({action:'SAVE_FINDING',data:{...f,description,status}});
-  else if(status!==f.status) await post({action:'UPDATE_STATUS',finding_id:f.finding_id,status});
-  else return;
-  await refreshOnce();
- }catch(_){queue('SAVE_FINDING',{...f,description,status});alert('⚠️ Central belum mengonfirmasi. Perubahan masuk antrean pending.')}
-}
-async function deleteFinding(id){
- if(!confirm('Hapus Finding ini dari CENTRAL?'))return;
- if(!navigator.onLine){queue('DELETE_FINDING',{finding_id:id});return alert('📦 Offline. Penghapusan masuk antrean Central.')}
- try{
-  msg('⏳ Menghapus Finding dari CENTRAL...');
-  await post({action:'DELETE_FINDING',finding_id:id});
-  await refreshOnce();
- }catch(_){queue('DELETE_FINDING',{finding_id:id});alert('⚠️ Central belum mengonfirmasi penghapusan. Masuk antrean pending.')}
-}
-async function flushQueue(){
- if(!navigator.onLine||!API)return 0;
- let q=[];try{q=JSON.parse(localStorage.getItem(QUEUE)||'[]')}catch(_){}
- if(!Array.isArray(q)||!q.length)return 0;
- msg('⏳ Mengirim '+q.length+' perubahan pending ke CENTRAL...');
- const remain=[];
- for(const x of q){
-  let sent=false;
-  try{
-   if(x.action==='SAVE_FINDING'){await post({action:'SAVE_FINDING',data:x.data});sent=true}
-   else if(x.action==='DELETE_FINDING'){await post({action:'DELETE_FINDING',finding_id:x.data.finding_id});sent=true}
-   else if(x.action==='UPDATE_STATUS'){await post({action:'UPDATE_STATUS',finding_id:x.data.finding_id,status:x.data.status});sent=true}
-   }catch(_){}
-  if(!sent)remain.push(x);
- }
- localStorage.setItem(QUEUE,JSON.stringify(remain));
- if(remain.length){
-  msg('⚠️ '+remain.length+' perubahan masih pending di CENTRAL.',false);
- }else{
-  msg('✅ Semua perubahan pending sudah dikirim ke CENTRAL.',true);
- }
- return q.length-remain.length;
-}
-function wire(){document.querySelectorAll('.fn-add-finding').forEach(b=>b.onclick=()=>openNew(b.dataset.area));document.querySelectorAll('.fn-save-edit').forEach(b=>b.onclick=()=>updateFinding(b.dataset.id));document.querySelectorAll('input[data-status-id]').forEach(r=>r.onchange=()=>updateFinding(r.dataset.statusId));document.querySelectorAll('.fn-delete').forEach(b=>b.onclick=()=>deleteFinding(b.dataset.id));document.querySelectorAll('.fn-gallery').forEach(b=>b.onclick=()=>document.querySelector('.fn-gallery-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-camera').forEach(b=>b.onclick=()=>document.querySelector('.fn-camera-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-gallery-input,.fn-camera-input').forEach(i=>i.onchange=async e=>{const f=centralFindings.find(x=>String(x.finding_id)===String(i.dataset.id));if(!f)return;const add=[];for(const file of Array.from(e.target.files||[]))if(file.type.startsWith('image/'))add.push(await dataUrl(file));const old=photosOf(f);const payload={...f,photo_url:JSON.stringify(old.concat(add))};try{await post({action:'SAVE_FINDING',data:payload});await refreshOnce()}catch(_){queue('SAVE_FINDING',payload)}e.target.value=''})}
-function setup(){window.centralFindings=centralFindings;$('fnRefreshBtn')?.addEventListener('click',syncCentral);$('fnAddTopBtn')?.addEventListener('click',()=>openNew(''));render();window.addEventListener('online',syncCentral);syncCentral()}
-function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');$('sideNav')?.classList.remove('open');$('navOverlay')?.classList.remove('open');syncCentral()}
-window.STT_FINDING_NOTES={sync:syncCentral,open:openSection,get:()=>centralFindings.slice()};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup);else setup();
+function cacheRead(){try{const x=JSON.parse(localStorage.getItem(CACHE)||'{}');return {findings:Array.isArray(x.findings)?x.findings.map(normalize):[],revision:String(x.revision||'')};}catch(_){return {findings:[],revision:''};}}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+async function fetchTimeout(url,opts={},timeout=REQUEST_TIMEOUT){const c=new AbortController();const timer=setTimeout(()=>c.abort(),timeout);try{return await fetch(url,Object.assign({},opts,{signal:c.signal}));}finally{clearTimeout(timer);}}
+async function retry(fn,label){let last;for(let i=0;i<=RETRIES;i++){try{return await fn();}catch(e){last=e;if(i<RETRIES){msg('⏳ '+label+' — mencoba lagi ('+(i+1)+'/'+RETRIES+')...',false);await sleep(500*(i+1));}}}throw last;}
+async function getMeta(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await retry(()=>fetchTimeout(API+'?action=GET_META&t='+Date.now(),{cache:'no-store'},REQUEST_TIMEOUT),'Membaca status Central');if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return String(j.revision||'');}
+async function getCentral(){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');const r=await retry(()=>fetchTimeout(API+'?action=GET_FINDINGS&t='+Date.now(),{cache:'no-store'},REQUEST_TIMEOUT),'Mengambil Finding Central');if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.status!=='success')throw new Error(j.message||'Central error');return {findings:Array.isArray(j.data)?j.data.map(normalize):[],revision:String(j.revision||'')};}
+async function postJson(payload){if(!API)throw new Error('Central Web App URL belum dikonfigurasi.');await retry(()=>fetchTimeout(API,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)},REQUEST_TIMEOUT),'Mengirim perubahan Central');return true;}
+async function uploadPhoto(blob,meta,index,total){if(!(blob instanceof Blob))throw new Error('Blob foto tidak valid.');if(blob.size>6*1024*1024)throw new Error('Foto terlalu besar (>6 MB).');const uploadId='UP-'+Date.now()+'-'+Math.random().toString(36).slice(2,10).toUpperCase();const mime=String(meta.mime||blob.type||'image/jpeg').toLowerCase();const filename=String(meta.filename||('finding_'+Date.now()+'.jpg')).replace(/[\\/:*?"<>|]/g,'_').slice(0,100);const url=API+'?action=UPLOAD_PHOTO&upload_id='+encodeURIComponent(uploadId)+'&finding_id='+encodeURIComponent(meta.findingId)+'&mime='+encodeURIComponent(mime)+'&filename='+encodeURIComponent(filename);const wireBlob=new Blob([blob],{type:'text/plain'});await retry(()=>fetchTimeout(url,{method:'POST',mode:'no-cors',cache:'no-store',body:wireBlob},UPLOAD_TIMEOUT),'Upload foto '+(index+1)+'/'+total);for(let i=0;i<15;i++){await sleep(450);const r=await fetchTimeout(API+'?action=GET_UPLOAD_STATUS&upload_id='+encodeURIComponent(uploadId)+'&t='+Date.now(),{cache:'no-store'},REQUEST_TIMEOUT);if(r.ok){const j=await r.json();if(j.status==='success'&&j.url)return j.url;if(j.status==='error')throw new Error(j.message||'Upload foto gagal');}progress('☁️ Upload foto '+(index+1)+'/'+total+'...',Math.round(((index+(i+1)/15)/Math.max(1,total))*65)+10);}throw new Error('Upload foto timeout.');}
+function blobFromFile(file){return new Promise((resolve,reject)=>{if(!file||!file.type.startsWith('image/'))return reject(new Error('File bukan gambar.'));const src=URL.createObjectURL(file);const img=new Image();img.onload=()=>{try{const MAX=1280,scale=Math.min(1,MAX/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height)),w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale)),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d',{alpha:false}).drawImage(img,0,0,w,h);c.toBlob(b=>{URL.revokeObjectURL(src);b?resolve(b):reject(new Error('Gagal mengompres foto.'));},'image/jpeg',.78);}catch(e){URL.revokeObjectURL(src);reject(e);}};img.onerror=()=>{URL.revokeObjectURL(src);reject(new Error('Foto tidak dapat dibaca.'));};img.src=src;});}
+function openPendingDb(){if(pendingDb)return Promise.resolve(pendingDb);return new Promise(resolve=>{const r=indexedDB.open(PENDING_DB,3);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains(PENDING_STORE))d.createObjectStore(PENDING_STORE);};r.onsuccess=()=>{pendingDb=r.result;resolve(pendingDb)};r.onerror=()=>resolve(null);});}
+function pPut(key,val){return openPendingDb().then(db=>new Promise(res=>{if(!db)return res(false);const tx=db.transaction(PENDING_STORE,'readwrite');tx.objectStore(PENDING_STORE).put(val,key);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);}));}
+function pGetAll(){return openPendingDb().then(db=>new Promise(res=>{if(!db)return res([]);const tx=db.transaction(PENDING_STORE,'readonly'),r=tx.objectStore(PENDING_STORE).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>res([]);}));}
+function pDel(key){return openPendingDb().then(db=>new Promise(res=>{if(!db)return res(false);const tx=db.transaction(PENDING_STORE,'readwrite');tx.objectStore(PENDING_STORE).delete(key);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);}));}
+async function queuePending(kind,data,blobs){const id='P-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);await pPut(id,{id,kind,data,blobs:Array.isArray(blobs)?blobs:[],queuedAt:Date.now(),attempts:0});return id;}
+async function resolvePendingItem(item){const d=Object.assign({},item.data);const blobList=Array.isArray(item.blobs)?item.blobs:[];const urls=photosOf(d);for(let i=0;i<blobList.length;i++){urls.push(await uploadPhoto(blobList[i],{findingId:d.finding_id,filename:'finding_'+d.finding_id+'_'+(i+1)+'.jpg',mime:blobList[i].type},i,blobList.length));}d.photo_url=urls;await postJson({action:'SAVE_FINDING',data:d});}
+async function flushPending(){if(!navigator.onLine||!API)return 0;const list=await pGetAll();if(!list.length)return 0;let sent=0;for(const item of list){try{msg('⏳ Mengirim pending Finding ke CENTRAL...',false);await resolvePendingItem(item);await pDel(item.id);sent++;}catch(e){item.attempts=Number(item.attempts||0)+1;await pPut(item.id,item);break;}}return sent;}
+async function syncCentral(){if(syncInFlight)return syncInFlight;syncInFlight=(async()=>{try{if(!navigator.onLine){const c=cacheRead();centralFindings=c.findings;render();msg('⚠️ OFFLINE — cache terakhir ditampilkan.',false);return false;}await flushPending();const rev=await getMeta(),cached=cacheRead();if(cached.revision&&cached.revision===rev){centralFindings=cached.findings;render();msg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);return true;}msg('⏳ Mengambil data terbaru dari CENTRAL...',false);const fresh=await getCentral();centralFindings=fresh.findings;cacheWrite(fresh.revision||rev);render();msg('✅ CENTRAL tersinkronisasi • '+new Date().toLocaleString('id-ID'),true);return true;}catch(e){const c=cacheRead();centralFindings=c.findings;render();msg((navigator.onLine?'❌ CENTRAL gagal dibaca. ':'⚠️ OFFLINE. ')+'Cache terakhir ditampilkan.',false);return false;}finally{syncInFlight=null;}})();return syncInFlight;}
+function fmtDate(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleDateString('id-ID');}
+function fmtTime(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+function status(v){const s=String(v||'OPEN').toUpperCase();return ['OPEN','IN PROGRESS','FIXED'].includes(s)?s:'OPEN';}
+function render(){const root=$('fnAreaCards');if(!root)return;const groups=new Map();centralFindings.forEach(f=>{const k=areaKey(f.area_code)||'tanpa-area';if(!groups.has(k))groups.set(k,{name:f.area_code||'Tanpa Area',items:[]});groups.get(k).items.push(f);});if(!groups.size){root.innerHTML='<div class="fn-empty">Belum ada Finding Notes di CENTRAL.</div>';wire();return;}root.innerHTML=Array.from(groups.values()).map(g=>'<div class="fn-area-block"><div class="fn-area-head"><div class="fn-area-title">📍 '+esc(g.name)+'</div><div class="fn-area-count">'+g.items.length+' Finding</div><button type="button" class="btn btn-primary fn-add-finding" data-area="'+esc(g.name)+'">➕ TAMBAH FINDING</button></div>'+g.items.map(f=>card(f)).join('')+'</div>').join('');wire();}
+function card(f){const ps=photosOf(f),fixed=status(f.status)==='FIXED';return '<div class="fn-finding-card '+(fixed?'fixed':'')+'" data-finding-card="'+esc(f.finding_id)+'"><div class="fn-finding-title">FINDING NOTES • '+esc(f.finding_id)+'</div><textarea class="fn-notes-box fn-edit-content">'+esc(f.description||'-')+'</textarea><div class="fn-meta">PENEMU: '+esc(f.finder_name||'-')+'<br>TANGGAL: '+esc(fmtDate(f.created_at))+' • JAM: '+esc(fmtTime(f.created_at))+'<br>AREA: '+esc(f.area_code||'-')+'</div><div class="fn-status"><b>STATUS</b><label><input type="radio" data-status-id="'+esc(f.finding_id)+'" name="st-'+esc(f.finding_id)+'" value="OPEN" '+(status(f.status)==='OPEN'?'checked':'')+'> OPEN</label><label><input type="radio" data-status-id="'+esc(f.finding_id)+'" name="st-'+esc(f.finding_id)+'" value="IN PROGRESS" '+(status(f.status)==='IN PROGRESS'?'checked':'')+'> IN PROGRESS</label><label class="fixed-status"><input type="radio" data-status-id="'+esc(f.finding_id)+'" name="st-'+esc(f.finding_id)+'" value="FIXED" '+(fixed?'checked':'')+'> FIXED</label></div><div class="fn-photo-grid">'+ps.map((p,i)=>'<div class="fn-photo-item"><img loading="lazy" src="'+esc(p)+'"><button type="button" class="fn-remove-photo" data-id="'+esc(f.finding_id)+'" data-photo-index="'+i+'">×</button></div>').join('')+'</div><div class="fn-photo-actions"><button type="button" class="btn btn-primary fn-save-edit" data-id="'+esc(f.finding_id)+'">💾 SIMPAN</button><button type="button" class="btn btn-danger fn-delete" data-id="'+esc(f.finding_id)+'">🗑 HAPUS</button><button type="button" class="btn btn-warning fn-gallery" data-id="'+esc(f.finding_id)+'">🖼 GALERI</button><button type="button" class="btn btn-danger fn-camera" data-id="'+esc(f.finding_id)+'">📷 KAMERA</button></div><input type="file" accept="image/*" multiple class="fn-gallery-input" data-id="'+esc(f.finding_id)+'" style="display:none"><input type="file" accept="image/*" capture="environment" multiple class="fn-camera-input" data-id="'+esc(f.finding_id)+'" style="display:none"></div>';}
+function renderDraft(box,files){const holder=box.querySelector('.fn-new-photos');holder.querySelectorAll('img[data-object-url]').forEach(img=>{try{URL.revokeObjectURL(img.dataset.objectUrl)}catch(_){} });holder.innerHTML=files.map((file,i)=>{const u=URL.createObjectURL(file);return '<div class="fn-photo-item"><img data-object-url="'+esc(u)+'" src="'+esc(u)+'"><button type="button" data-i="'+i+'">×</button></div>';}).join('');holder.querySelectorAll('button').forEach(b=>b.onclick=()=>{files.splice(Number(b.dataset.i),1);renderDraft(box,files);});}
+function openNew(area){const now=new Date();const date=now.toISOString().slice(0,10),time=now.toTimeString().slice(0,8);const box=document.createElement('div');box.className='fn-new-box';box.innerHTML='<label class="fn-new-label">TAMBAH FINDING KE CENTRAL</label><input class="fn-new-area" value="'+esc(area||'')+'" placeholder="AREA / AREA CODE" style="width:100%;box-sizing:border-box;padding:12px;border:2px solid #2563eb;border-radius:10px;font-size:18px;font-weight:800;margin-bottom:10px"><input class="fn-new-finder" value="'+esc(String($('petugasName')?.value||'Petugas'))+'" placeholder="Nama Penemu" style="width:100%;box-sizing:border-box;padding:12px;border:2px solid #94a3b8;border-radius:10px;font-size:18px;font-weight:800;margin-bottom:10px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><div><label style="font-size:12px">TANGGAL</label><input type="date" class="fn-new-date" value="'+date+'"></div><div><label style="font-size:12px">JAM</label><input type="time" step="1" class="fn-new-time" value="'+time+'"></div></div><textarea class="fn-new-content" placeholder="Tulis Finding Notes bebas."></textarea><div class="fn-photo-grid fn-new-photos"></div><div class="fn-photo-actions"><button type="button" class="btn btn-danger fn-new-camera">📷 KAMERA</button><button type="button" class="btn btn-warning fn-new-gallery">🖼 GALERI</button><button type="button" class="btn btn-primary fn-new-save">☁️ SIMPAN KE CENTRAL</button><button type="button" class="btn btn-ghost fn-new-cancel">BATAL</button></div><input type="file" accept="image/*" capture="environment" multiple class="fn-new-camera-input" style="display:none"><input type="file" accept="image/*" multiple class="fn-new-gallery-input" style="display:none">';$('fnAreaCards').prepend(box);const files=[];const add=async fs=>{for(const file of Array.from(fs||[])){if(file.type.startsWith('image/'))files.push(file);}renderDraft(box,files);};box.querySelector('.fn-new-camera').onclick=()=>box.querySelector('.fn-new-camera-input').click();box.querySelector('.fn-new-gallery').onclick=()=>box.querySelector('.fn-new-gallery-input').click();box.querySelector('.fn-new-camera-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-gallery-input').onchange=e=>{add(e.target.files);e.target.value=''};box.querySelector('.fn-new-cancel').onclick=()=>{renderDraft(box,[]);box.remove();};box.querySelector('.fn-new-save').onclick=async()=>{const areaName=box.querySelector('.fn-new-area').value.trim(),finder=box.querySelector('.fn-new-finder').value.trim(),description=box.querySelector('.fn-new-content').value,dateValue=box.querySelector('.fn-new-date').value,timeValue=box.querySelector('.fn-new-time').value;if(!areaName)return alert('AREA wajib diisi.');if(!description.trim())return alert('Finding Notes wajib diisi.');const createdAt=new Date(`${dateValue}T${timeValue||'00:00:00'}`).toISOString(),id='FIND-'+Date.now()+'-'+Math.random().toString(36).slice(2,8).toUpperCase();const base={finding_id:id,area_code:areaName,photo_url:[],description,finder_name:finder||'Petugas',created_at:createdAt,status:'OPEN'};try{if(!navigator.onLine){const blobs=[];for(const file of files)blobs.push(await blobFromFile(file));await queuePending('SAVE',base,blobs);renderDraft(box,[]);box.remove();return alert('📦 Offline. Finding dan foto disimpan ke antrean lokal.');}progress('☁️ Menyiapkan Finding...',5);const urls=[];let uploadedBlobs=0;for(let i=0;i<files.length;i++){const b=await blobFromFile(files[i]);urls.push(await uploadPhoto(b,{findingId:id,filename:'finding_'+id+'_'+(i+1)+'.jpg',mime:b.type},i,files.length));uploadedBlobs=i+1;await new Promise(requestAnimationFrame);}base.photo_url=urls;progress('☁️ Menyimpan data Finding...',80);await postJson({action:'SAVE_FINDING',data:base});await syncCentral();if(!centralFindings.some(x=>String(x.finding_id)===id))throw new Error('Central belum mengonfirmasi Finding.');renderDraft(box,[]);box.remove();closeProgress();alert('✅ Finding tersimpan di CENTRAL.');}catch(e){closeProgress();if(navigator.onLine){const blobs=[];try{for(let i=uploadedBlobs;i<files.length;i++)blobs.push(await blobFromFile(files[i]));}catch(_){}const pendingData={...base,photo_url:urls.slice()};await queuePending('SAVE',pendingData,blobs);}renderDraft(box,[]);box.remove();alert('⚠️ '+(e?.message||'Gagal menyimpan Finding')+'\nFinding masuk antrean pending.');}};box.scrollIntoView({behavior:'smooth',block:'center'});}
+async function updateFinding(id){const f=centralFindings.find(x=>String(x.finding_id)===String(id));if(!f)return;const el=document.querySelector('.fn-finding-card[data-finding-card="'+CSS.escape(String(id))+'"]');const description=el?.querySelector('.fn-edit-content')?.value??f.description,statusValue=el?.querySelector('input[data-status-id="'+CSS.escape(String(id))+'"]:checked')?.value??f.status;if(description===f.description&&statusValue===f.status)return;const payload={...f,photo_url:photosOf(f),description,status:statusValue};try{if(!navigator.onLine){await queuePending('SAVE',payload,[]);return alert('📦 Offline. Perubahan disimpan ke antrean lokal.');}msg('⏳ Menyimpan perubahan ke CENTRAL...',false);await postJson({action:'SAVE_FINDING',data:payload});await syncCentral();const fresh=centralFindings.find(x=>String(x.finding_id)===String(id));if(!fresh||fresh.description!==description||status(fresh.status)!==statusValue)throw new Error('Central belum mengonfirmasi perubahan.');}catch(e){await queuePending('SAVE',payload,[]);alert('⚠️ '+(e?.message||'Gagal menyimpan')+'\nPerubahan masuk antrean pending.');}}
+async function deleteFinding(id){if(!confirm('Hapus Finding ini dari CENTRAL?'))return;try{if(!navigator.onLine){await queuePending('DELETE',{finding_id:id},[]);return alert('📦 Offline. Penghapusan disimpan ke antrean lokal.');}msg('⏳ Menghapus Finding dari CENTRAL...',false);await postJson({action:'DELETE_FINDING',finding_id:id});await syncCentral();if(centralFindings.some(x=>String(x.finding_id)===String(id)))throw new Error('Central belum mengonfirmasi penghapusan.');}catch(e){await queuePending('DELETE',{finding_id:id},[]);alert('⚠️ '+(e?.message||'Gagal menghapus')+'\nPenghapusan masuk antrean pending.');}}
+async function removePhoto(id,index){const f=centralFindings.find(x=>String(x.finding_id)===String(id));if(!f)return;const ps=photosOf(f);if(index<0||index>=ps.length)return;if(!confirm('Hapus foto Finding ini?'))return;ps.splice(index,1);const payload={...f,photo_url:ps};try{if(!navigator.onLine){await queuePending('SAVE',payload,[]);return alert('📦 Offline. Perubahan foto masuk antrean lokal.');}await postJson({action:'SAVE_FINDING',data:payload});await syncCentral();}catch(e){await queuePending('SAVE',payload,[]);alert('⚠️ '+(e?.message||'Gagal menghapus foto')+'\nPerubahan masuk antrean pending.');}}
+async function appendPhotos(id,files){const f=centralFindings.find(x=>String(x.finding_id)===String(id));if(!f)return;const valid=Array.from(files||[]).filter(x=>x.type.startsWith('image/'));if(!valid.length)return;const base={...f,photo_url:photosOf(f)};try{const blobs=[];if(!navigator.onLine){for(const file of valid)blobs.push(await blobFromFile(file));await queuePending('SAVE',base,blobs);return alert('📦 Offline. Foto disimpan ke antrean lokal.');}progress('☁️ Mengupload foto Finding...',5);let uploaded=0;for(let i=0;i<valid.length;i++){const b=await blobFromFile(valid[i]);base.photo_url.push(await uploadPhoto(b,{findingId:id,filename:'finding_'+id+'_'+Date.now()+'_'+i+'.jpg',mime:b.type},i,valid.length));uploaded=i+1;await new Promise(requestAnimationFrame);}await postJson({action:'SAVE_FINDING',data:base});await syncCentral();closeProgress();}catch(e){closeProgress();const remaining=[];try{for(let i=0;i<valid.length;i++){if(i>=base.photo_url.length-photosOf(f).length)remaining.push(await blobFromFile(valid[i]));}}catch(_){}await queuePending('SAVE',base,remaining);alert('⚠️ '+(e?.message||'Upload foto gagal')+'\nPerubahan masuk antrean pending.');}}
+function wire(){document.querySelectorAll('.fn-add-finding').forEach(b=>b.onclick=()=>openNew(b.dataset.area));document.querySelectorAll('.fn-save-edit').forEach(b=>b.onclick=()=>updateFinding(b.dataset.id));document.querySelectorAll('input[data-status-id]').forEach(r=>r.onchange=()=>updateFinding(r.dataset.statusId));document.querySelectorAll('.fn-delete').forEach(b=>b.onclick=()=>deleteFinding(b.dataset.id));document.querySelectorAll('.fn-remove-photo').forEach(b=>b.onclick=()=>removePhoto(b.dataset.id,Number(b.dataset.photoIndex)));document.querySelectorAll('.fn-gallery').forEach(b=>b.onclick=()=>document.querySelector('.fn-gallery-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-camera').forEach(b=>b.onclick=()=>document.querySelector('.fn-camera-input[data-id="'+CSS.escape(b.dataset.id)+'"]')?.click());document.querySelectorAll('.fn-gallery-input,.fn-camera-input').forEach(i=>i.onchange=async e=>{try{await appendPhotos(i.dataset.id,e.target.files);}finally{e.target.value='';}})}
+async function setup(){if(setupDone)return;setupDone=true;await openPendingDb();window.centralFindings=centralFindings;$('fnRefreshBtn')?.addEventListener('click',syncCentral);$('fnAddTopBtn')?.addEventListener('click',()=>openNew(''));render();onlineHandler=()=>syncCentral();window.addEventListener('online',onlineHandler,{passive:true});await syncCentral();}
+function openSection(){document.querySelectorAll('.menu-only-section').forEach(x=>x.classList.remove('menu-section-open'));$('findingNotesSection')?.classList.add('menu-section-open');$('sideNav')?.classList.remove('open');$('navOverlay')?.classList.remove('open');syncCentral();}
+window.STT_FINDING_NOTES_NORMALIZE=normalize;window.STT_FINDING_NOTES={sync:syncCentral,open:openSection,get:()=>centralFindings.slice()};window.STT_FINDING_NOTES_GET_AREA=areaName=>centralFindings.filter(f=>areaKey(f.area_code)===areaKey(areaName));
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup,{once:true});else setup();
 })();
 </script>
 </body>
