@@ -42,9 +42,8 @@ for p in modules:
         f'<span class="badge">{escape(button)}</span></a>'
     )
 
-# Unified Code.gs deployment URL. Deploy the unified Code.gs supplied with this
-# upgrade to this Apps Script project so the existing URL can stay unchanged.
-device_url = 'https://script.google.com/macros/s/AKfycbxBmXqb3ZR9atxhDn_m7O0MdPNfpeSbw2ibeSN4bVHzDKbhimucSZ44lllvxjWgf2bhVA/exec'
+# Unified Code.gs deployment URL.
+device_url = 'https://script.google.com/macros/s/AKfycbyAJ9CFiTESUWLiCF_x0APclk4U-Zd85jI6LfWjE22hN8nyS_9yDEf0-rYrObuwyf59lA/exec'
 build_sha = os.environ.get('GITHUB_SHA', '')[:7] or 'local'
 app_version = '1.0.' + build_sha
 
@@ -124,8 +123,6 @@ launcher = f'''<!DOCTYPE html>
   }};
   $('activationCode').addEventListener('keydown',e=>{{if(e.key==='Enter')$('activateBtn').click();}});
   $('copyIdBtn').onclick=async function(){{try{{await navigator.clipboard.writeText($('installationId').textContent);showGate('Installation ID disalin.',true);}}catch(e){{showGate('Salin ID secara manual.',false);}}}};
-  // Re-check every 15 minutes. If the owner changes ACTIVE to BLOCKED/REVOKED,
-  // the launcher reloads and keeps the suite locked.
   setInterval(async()=>{{try{{const j=await check('');if(String(j.status||'').toUpperCase()!=='ACTIVE')location.reload();}}catch(e){{}}}},900000);
   boot();
 }})();
