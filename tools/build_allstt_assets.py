@@ -64,8 +64,6 @@ for p in modules:
     target = ASSETS / p.name
     text = p.read_text(encoding='utf-8')
     if p.name.lower() == 'stt.html':
-        # Repair the existing PDF Finding Notes image resolver so Google Drive
-        # URLs use the same reliable candidate chain as the on-screen preview.
         text, n_pdf = re.subn(
             r'async function centralPhotoData\(url\)\{.*?\n    \}\n    function findingPhotos\(f\)',
             PDF_PHOTO_RESOLVER + '\n    function findingPhotos(f)',
@@ -76,8 +74,6 @@ for p in modules:
         if n_pdf == 0:
             print('WARNING: centralPhotoData build patch did not match')
 
-        # The existing Word exporter passes both arrays and plain strings to
-        # pLines(). Make the helper accept either without changing its callers.
         text, n_lines = re.subn(
             r'function pLines\(lines,opt=\{\}\)\{return lines\.map\(\(x,i\)=>pText\(x,\{\.\.\.opt,after:i===lines\.length-1\?\(opt\.after\?\?80\):0\}\)\)\.join\(\'\'\);\}',
             "function pLines(lines,opt={}){const a=Array.isArray(lines)?lines:String(lines==null?'':lines).split(/\\r?\\n/);return a.map((x,i)=>pText(x,{...opt,after:i===a.length-1?(opt.after??80):0})).join('');}",
@@ -114,6 +110,8 @@ device_url = 'https://script.google.com/macros/s/AKfycbyAJ9CFiTESUWLiCF_x0APclk4
 build_sha = os.environ.get('GITHUB_SHA', '')[:7] or 'local'
 app_version = '1.0.' + build_sha
 
+# IMPORTANT: this launcher is generated fresh for every Android build.
+# The Android APK must never reuse the legacy SALAM/LANJUTKAN launcher.
 launcher = f'''<!DOCTYPE html>
 <html lang="id">
 <head>
