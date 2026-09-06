@@ -3,6 +3,7 @@ from pathlib import Path
 from html import escape
 from urllib.parse import quote
 import os
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / 'app' / 'src' / 'main' / 'assets'
@@ -13,17 +14,83 @@ modules = sorted(p for p in ROOT.glob('*.html') if p.name.lower() != 'launcher.h
 if not modules:
     raise SystemExit('No root HTML application modules found.')
 
-# Never rewrite uploaded source HTML. The STT image hardening patch is applied
-# only to the build copy inside Android assets.
+# Never rewrite uploaded source HTML. STT hardening is applied only to the
+# Android build copy so the original workflow/source remains intact.
 stt_patch = ROOT / 'tools' / 'stt_runtime_fix.js'
 patch_text = stt_patch.read_text(encoding='utf-8') if stt_patch.exists() else ''
+
+# Build-only STT export fixes. The existing UI/business flow is preserved;
+# these replacements only repair the image resolver and text helper used by
+# the existing PDF/Word exporters.
+PDF_PHOTO_RESOLVER = r'''async function centralPhotoData(url){
+      const src=String(url||'').trim();
+      if(!src) return null;
+      if(/^data:image\\//i.test(src)) return src;
+      if(centralPhotoCache.has(src)) return centralPhotoCache.get(src);
+      const promise=(async()=>{
+        const candidates=[];
+        const m=src.match(/[?&]id=([A-Za-z0-9_-]{10,})/i)||src.match(/\\/d\\/([A-Za-z0-9_-]{10,})/i);
+        if(m&&m[1]){
+          const id=encodeURIComponent(m[1]);
+          candidates.push('https://drive.google.com/thumbnail?id='+id+'&sz=w1600');
+          candidates.push('https://drive.google.com/uc?export=view&id='+id);
+          candidates.push('https://lh3.googleusercontent.com/d/'+id+'=w1600');
+          candidates.push('https://drive.google.com/uc?export=download&id='+id);
+        }else candidates.push(src);
+        let lastErr=null;
+        for(const candidate of candidates){
+          try{
+            const r=await fetchRetry(candidate,{mode:'cors',cache:'no-store'},15000,2);
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            const blob=await r.blob();
+            if(!blob||!blob.size) throw new Error('Gambar kosong');
+            return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
+          }catch(e){lastErr=e;}
+        }
+        try{
+          const img=new Image();img.crossOrigin='anonymous';
+          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=candidates[0]||src;});
+          const c=document.createElement('canvas');c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;
+          if(!c.width||!c.height) throw new Error('Dimensi gambar kosong');
+          c.getContext('2d').drawImage(img,0,0);return c.toDataURL('image/jpeg',0.9);
+        }catch(e){lastErr=e;}
+        throw lastErr||new Error('Foto Finding tidak dapat dimuat');
+      })();
+      centralPhotoCache.set(src,promise);
+      try{return await promise;}catch(e){centralPhotoCache.delete(src);throw e;}
+    }'''
+
 for p in modules:
     target = ASSETS / p.name
     text = p.read_text(encoding='utf-8')
-    if p.name.lower() == 'stt.html' and patch_text and 'ALLSTT_BUILD_RUNTIME_FIX_V1' not in text:
-        injection = '\n<script id="ALLSTT_BUILD_RUNTIME_FIX_V1">\n' + patch_text + '\n</script>\n'
-        pos = text.lower().rfind('</body>')
-        text = text[:pos] + injection + text[pos:] if pos >= 0 else text + injection
+    if p.name.lower() == 'stt.html':
+        # Repair the existing PDF Finding Notes image resolver so Google Drive
+        # URLs use the same reliable candidate chain as the on-screen preview.
+        text, n_pdf = re.subn(
+            r'async function centralPhotoData\(url\)\{.*?\n    \}\n    function findingPhotos\(f\)',
+            PDF_PHOTO_RESOLVER + '\n    function findingPhotos(f)',
+            text,
+            count=1,
+            flags=re.S
+        )
+        if n_pdf == 0:
+            print('WARNING: centralPhotoData build patch did not match')
+
+        # The existing Word exporter passes both arrays and plain strings to
+        # pLines(). Make the helper accept either without changing its callers.
+        text, n_lines = re.subn(
+            r'function pLines\(lines,opt=\{\}\)\{return lines\.map\(\(x,i\)=>pText\(x,\{\.\.\.opt,after:i===lines\.length-1\?\(opt\.after\?\?80\):0\}\)\)\.join\(\'\'\);\}',
+            "function pLines(lines,opt={}){const a=Array.isArray(lines)?lines:String(lines==null?'':lines).split(/\\r?\\n/);return a.map((x,i)=>pText(x,{...opt,after:i===a.length-1?(opt.after??80):0})).join('');}",
+            text,
+            count=1
+        )
+        if n_lines == 0:
+            print('WARNING: pLines build patch did not match')
+
+        if patch_text and 'ALLSTT_BUILD_RUNTIME_FIX_V1' not in text:
+            injection = '\n<script id="ALLSTT_BUILD_RUNTIME_FIX_V1">\n' + patch_text + '\n</script>\n'
+            pos = text.lower().rfind('</body>')
+            text = text[:pos] + injection + text[pos:] if pos >= 0 else text + injection
     target.write_text(text, encoding='utf-8')
 
 labels = {
