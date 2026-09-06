@@ -35,6 +35,41 @@
   // gate must not ask for the ADMIN password after Central activation.
   try{ localStorage.setItem('STT_DEVICE_ACCESS_STATUS_V1','allowed'); }catch(e){}
 
+  // HARD STT ENTRY FIX: the old notification/announcement overlay and the
+  // legacy local device gate must never trap the user inside STT on Android.
+  // The unified launcher already performs Central activation before opening STT.
+  function fixSttEntry(){
+    try{
+      var gate=document.getElementById('sttDeviceAccessGate');
+      if(gate) gate.remove();
+      document.body.classList.remove('stt-device-locked');
+
+      var modal=document.getElementById('notificationModal');
+      var btn=document.getElementById('aamiinBtn');
+      if(btn && btn.dataset.allsttEntryFix!=='1'){
+        btn.dataset.allsttEntryFix='1';
+        var close=function(ev){
+          if(ev){try{ev.preventDefault();}catch(_){}try{ev.stopPropagation();}catch(_){}try{ev.stopImmediatePropagation();}catch(_){}
+          }
+          try{ if(modal) modal.style.display='none'; }catch(_){}
+          try{ if(modal) modal.setAttribute('aria-hidden','true'); }catch(_){}
+          try{ localStorage.setItem('bangPriNotif','dilihat'); }catch(_){}
+          return false;
+        };
+        btn.addEventListener('pointerdown',close,{capture:true,passive:false});
+        btn.addEventListener('touchstart',close,{capture:true,passive:false});
+        btn.addEventListener('touchend',close,{capture:true,passive:false});
+        btn.addEventListener('click',close,{capture:true,passive:false});
+      }
+      // If the old modal is still displayed but its button was not rendered
+      // correctly, expose the page immediately rather than leaving a dead UI.
+      if(modal && modal.style.display!=='none' && !btn){
+        modal.style.display='none';
+        modal.setAttribute('aria-hidden','true');
+      }
+    }catch(e){}
+  }
+
   function driveId(url){
     var s=String(url||'').trim();
     var m=s.match(/[?&]id=([A-Za-z0-9_-]{10,})/i) || s.match(/\/d\/([A-Za-z0-9_-]{10,})/i);
@@ -72,7 +107,6 @@
 
   // Word DOCX export calls photoDataWord(). The original exporter referenced
   // that helper but did not define it, causing "photoDataWord is not defined".
-  // Keep the existing exporter intact and provide only the missing resolver.
   async function photoDataWordImpl(url){
     var src=String(url||'').trim();
     if(!src) return null;
@@ -109,6 +143,7 @@
 
   function scan(root){
     try{
+      fixSttEntry();
       (root||document).querySelectorAll('.fn-photo-item img,.finding-photo-strip img,#findingNotesSection img').forEach(fixImage);
     }catch(e){}
   }
@@ -118,7 +153,7 @@
       var mo=new MutationObserver(function(){scan(document);});
       mo.observe(document.body||document.documentElement,{childList:true,subtree:true});
     }
-    setInterval(function(){scan(document);},2500);
+    setInterval(function(){scan(document);},500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true}); else install();
 })();
