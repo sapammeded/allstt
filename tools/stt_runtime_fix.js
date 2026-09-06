@@ -1,5 +1,36 @@
 (function(){
   'use strict';
+
+  // Android WebView compatibility: the native WebChromeClient in older builds
+  // may not surface JavaScript alert() reliably. Keep the existing STT code
+  // unchanged and provide a small in-page alert fallback for Android builds.
+  try{
+    if(!window.__ALLSTT_ALERT_FALLBACK_V1){
+      window.__ALLSTT_ALERT_FALLBACK_V1=true;
+      window.alert=function(message){
+        try{
+          var old=document.getElementById('__allstt_js_alert');
+          if(old) old.remove();
+          var wrap=document.createElement('div');
+          wrap.id='__allstt_js_alert';
+          wrap.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;';
+          var box=document.createElement('div');
+          box.style.cssText='width:min(420px,100%);background:#fff;color:#111827;border-radius:18px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.45);';
+          var text=document.createElement('div');
+          text.style.cssText='white-space:pre-wrap;word-break:break-word;font-size:16px;line-height:1.5;margin-bottom:18px;';
+          text.textContent=String(message==null?'':message);
+          var ok=document.createElement('button');
+          ok.type='button';
+          ok.textContent='OK';
+          ok.style.cssText='display:block;margin-left:auto;min-width:90px;border:0;border-radius:10px;padding:11px 18px;background:#2563eb;color:#fff;font-size:15px;font-weight:800;';
+          ok.onclick=function(){try{wrap.remove();}catch(e){}};
+          box.appendChild(text); box.appendChild(ok); wrap.appendChild(box); document.body.appendChild(wrap);
+          ok.focus();
+        }catch(e){ try{ console.log(String(message==null?'':message)); }catch(_){} }
+      };
+    }
+  }catch(e){}
+
   // Unified launcher is the single device-access gate. STT's legacy local
   // gate must not ask for the ADMIN password after Central activation.
   try{ localStorage.setItem('STT_DEVICE_ACCESS_STATUS_V1','allowed'); }catch(e){}
@@ -62,7 +93,6 @@
         });
       }catch(e){ lastErr=e; }
     }
-    // Same-origin/local data fallback for images already available to the page.
     try{
       var img=new Image();
       img.crossOrigin='anonymous';
