@@ -32,6 +32,12 @@ jobs:
           set -euo pipefail
           python3 tools/patch_hvss_native.py
 
+      - name: Apply Android WebView JavaScript dialog patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/patch_android_js_dialogs.py
+
       - name: Build assets from every root HTML module
         shell: bash
         run: |
