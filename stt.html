@@ -114,6 +114,9 @@
 }
 
 #aamiinBtn {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent;
   background: var(--gradient-primary);
   color: white;
   border: none;
@@ -1856,7 +1859,7 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzCviYEAiSgox3M3XtP3KZe0EGZamMEUjY2oFZtw4KrYViX7NM-3kZ55jgyU_JjtKdQ/exec";
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyaiAkjTjPFtJanLe2ow8UtM_QiGV0OW6hdqWmdPYl8jBopjkXrPkh7tmQRFu8KPHEJqg/exec";
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -1932,14 +1935,22 @@ const memoryManager = new MemoryManager();
   const notificationModal = document.getElementById('notificationModal');
   const aamiinBtn = document.getElementById('aamiinBtn');
   if (notificationModal && aamiinBtn) {
+    // Android WebView HARD FIX: close the overlay on the earliest touch/pointer
+    // event as well as click. This avoids WebView tap/click dispatch differences.
     const closeNotification = function(ev) {
-      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+      if (ev) { try { ev.preventDefault(); } catch (_) {} try { ev.stopPropagation(); } catch (_) {} }
       notificationModal.style.display = 'none';
+      notificationModal.setAttribute('aria-hidden','true');
       try { localStorage.setItem('bangPriNotif', 'dilihat'); } catch (_) {}
       return false;
     };
-    aamiinBtn.addEventListener('click', closeNotification, true);
+    aamiinBtn.style.pointerEvents = 'auto';
+    aamiinBtn.style.touchAction = 'manipulation';
+    aamiinBtn.onclick = closeNotification;
+    aamiinBtn.addEventListener('pointerdown', closeNotification, {capture:true, passive:false});
+    aamiinBtn.addEventListener('touchstart', closeNotification, {capture:true, passive:false});
     aamiinBtn.addEventListener('touchend', closeNotification, {capture:true, passive:false});
+    aamiinBtn.addEventListener('click', closeNotification, true);
     try {
       notificationModal.style.display = (localStorage.getItem('bangPriNotif') === 'dilihat') ? 'none' : 'flex';
     } catch (_) {
