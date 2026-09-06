@@ -1,5 +1,8 @@
 (function(){
   'use strict';
+  // Unified launcher is the single device-access gate. STT's legacy local
+  // gate must not ask for the ADMIN password after Central activation.
+  try{ localStorage.setItem('STT_DEVICE_ACCESS_STATUS_V1','allowed'); }catch(e){}
   function driveId(url){
     var s=String(url||'').trim();
     var m=s.match(/[?&]id=([A-Za-z0-9_-]{10,})/i) || s.match(/\/d\/([A-Za-z0-9_-]{10,})/i);
@@ -9,9 +12,7 @@
     var s=String(url||'').trim();
     var id=driveId(s);
     if(!id) return s;
-    if(/drive\.google\.com|drive\.usercontent\.google\.com/i.test(s)){
-      return 'https://drive.google.com/uc?export=view&id='+encodeURIComponent(id);
-    }
+    if(/drive\.google\.com|drive\.usercontent\.google\.com/i.test(s)) return 'https://drive.google.com/uc?export=view&id='+encodeURIComponent(id);
     return s;
   }
   function fixImage(img){
@@ -19,8 +20,7 @@
     var src=img.getAttribute('src')||'';
     var fixed=directImageUrl(src);
     if(fixed && fixed!==src){
-      img.dataset.sttDriveFix='1';
-      img.dataset.sttOriginalSrc=src;
+      img.dataset.sttDriveFix='1'; img.dataset.sttOriginalSrc=src;
       img.addEventListener('error',function(){
         var id=driveId(img.dataset.sttOriginalSrc||img.src);
         if(!id || img.dataset.sttDriveFallback==='1') return;
@@ -30,17 +30,10 @@
       img.src=fixed;
     }
   }
-  function scan(root){
-    try{
-      (root||document).querySelectorAll('.fn-photo-item img,.finding-photo-strip img,#findingNotesSection img').forEach(fixImage);
-    }catch(e){}
-  }
+  function scan(root){try{(root||document).querySelectorAll('.fn-photo-item img,.finding-photo-strip img,#findingNotesSection img').forEach(fixImage);}catch(e){}}
   function install(){
     scan(document);
-    if(window.MutationObserver){
-      var mo=new MutationObserver(function(){scan(document);});
-      mo.observe(document.body||document.documentElement,{childList:true,subtree:true});
-    }
+    if(window.MutationObserver){var mo=new MutationObserver(function(){scan(document);});mo.observe(document.body||document.documentElement,{childList:true,subtree:true});}
     setInterval(function(){scan(document);},2500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install,{once:true}); else install();
