@@ -32,15 +32,17 @@ jobs:
           set -euo pipefail
           python3 tools/patch_hvss_native.py
 
-      - name: Prepare HTML assets from current repository
+      - name: Build assets from every root HTML module
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p app/src/main/assets
-          for n in stt.html hvss2.html vacs.html launcher.html; do
-            test -s "$n"
-            cp -f "$n" "app/src/main/assets/$n"
-          done
+          rm -rf app/src/main/assets
+          python3 tools/build_allstt_assets.py
+          test -s app/src/main/assets/launcher.html
+          count=$(find app/src/main/assets -maxdepth 1 -type f -name '*.html' | wc -l)
+          echo "HTML assets built: $count"
+          test "$count" -ge 2
+          find app/src/main/assets -maxdepth 1 -type f -name '*.html' -printf '%f\n' | sort
 
       - name: Build APK from current repository
         run: gradle --no-daemon :app:assembleDebug
