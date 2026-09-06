@@ -13,10 +13,9 @@
   function driveCandidates(url){
     var s=String(url||'').trim(), id=driveId(s), out=[];
     if(!id) return s ? [s] : [];
-    // thumbnail is generally more reliable than /uc in Android WebView.
-    out.push('https://drive.google.com/thumbnail?id='+encodeURIComponent(id)+'&sz=w1200');
+    out.push('https://drive.google.com/thumbnail?id='+encodeURIComponent(id)+'&sz=w1600');
     out.push('https://drive.google.com/uc?export=view&id='+encodeURIComponent(id));
-    out.push('https://lh3.googleusercontent.com/d/'+encodeURIComponent(id)+'=w1200');
+    out.push('https://lh3.googleusercontent.com/d/'+encodeURIComponent(id)+'=w1600');
     out.push('https://drive.google.com/uc?export=download&id='+encodeURIComponent(id));
     return out;
   }
@@ -39,6 +38,44 @@
     img.addEventListener('error',next,false);
     next();
   }
+
+  // Word DOCX export calls photoDataWord(). The original exporter referenced
+  // that helper but did not define it, causing "photoDataWord is not defined".
+  // Keep the existing exporter intact and provide only the missing resolver.
+  async function photoDataWordImpl(url){
+    var src=String(url||'').trim();
+    if(!src) return null;
+    if(/^data:image\//i.test(src)) return src;
+    var candidates=driveCandidates(src);
+    var lastErr=null;
+    for(var i=0;i<candidates.length;i++){
+      try{
+        var r=await fetch(candidates[i],{mode:'cors',cache:'force-cache'});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        var blob=await r.blob();
+        if(!blob || !blob.size) throw new Error('Gambar kosong');
+        return await new Promise(function(resolve,reject){
+          var fr=new FileReader();
+          fr.onload=function(){resolve(String(fr.result||''));};
+          fr.onerror=reject;
+          fr.readAsDataURL(blob);
+        });
+      }catch(e){ lastErr=e; }
+    }
+    // Same-origin/local data fallback for images already available to the page.
+    try{
+      var img=new Image();
+      img.crossOrigin='anonymous';
+      await new Promise(function(resolve,reject){img.onload=resolve;img.onerror=reject;img.src=src;});
+      var c=document.createElement('canvas');
+      c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
+      if(!c.width||!c.height) throw new Error('Dimensi gambar kosong');
+      c.getContext('2d').drawImage(img,0,0);
+      return c.toDataURL('image/jpeg',0.9);
+    }catch(e){ lastErr=e; }
+    throw lastErr||new Error('Foto Finding tidak dapat dimuat');
+  }
+  window.photoDataWord=photoDataWordImpl;
 
   function scan(root){
     try{
