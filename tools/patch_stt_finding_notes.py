@@ -9,9 +9,10 @@ FINDING_URL = 'https://script.google.com/macros/s/AKfycbyAJ9CFiTESUWLiCF_x0APclk
 # endpoint is a different service and cannot answer GET_FINDINGS.
 old = "const API=(typeof PDF_UPLOAD_URL==='string'&&PDF_UPLOAD_URL.trim())?PDF_UPLOAD_URL.trim():'';"
 new = f"const API=(typeof STT_FINDING_CENTRAL_URL==='string'&&STT_FINDING_CENTRAL_URL.trim())?STT_FINDING_CENTRAL_URL.trim():{FINDING_URL!r};"
-if old not in s:
+if old not in s and 'STT_FINDING_CENTRAL_URL' not in s:
     raise SystemExit('Finding Notes API anchor not found')
-s = s.replace(old, new, 1)
+if old in s:
+    s = s.replace(old, new, 1)
 
 # The patrol-area alert still expected the old local Finding schema.
 start = s.find('  function findingAlertHtml(areaName,areaKey){')
@@ -44,7 +45,8 @@ if old_filter in s:
 word_anchor = "    const zip=new JSZip(),media=[];let rid=1;"
 if word_anchor not in s:
     raise SystemExit('Word exporter anchor not found')
-word_insert = '''    const zip=new JSZip(),media=[];let rid=1;
+if 'async function photoDataWord(p)' not in s:
+    word_insert = '''    const zip=new JSZip(),media=[];let rid=1;
     async function photoDataWord(p){
       if(p&&typeof p==='object'&&p.ref){
         const b=await idbGet(STORE_BLOBS,p.ref);
@@ -52,14 +54,15 @@ word_insert = '''    const zip=new JSZip(),media=[];let rid=1;
       }
       return typeof p==='string'?p:null;
     }'''
-s = s.replace(word_anchor, word_insert, 1)
+    s = s.replace(word_anchor, word_insert, 1)
 
 # DOCX text helper must accept strings as well as arrays.
 old_plines = "function pLines(lines,opt={}){return lines.map((x,i)=>pText(x,{...opt,after:i===lines.length-1?(opt.after??80):0})).join('');}"
 new_plines = "function pLines(lines,opt={}){const a=Array.isArray(lines)?lines:String(lines==null?'':lines).split(/\\r?\\n/);return a.map((x,i)=>pText(x,{...opt,after:i===a.length-1?(opt.after??80):0})).join('');}"
-if old_plines not in s:
-    raise SystemExit('Word pLines anchor not found')
-s = s.replace(old_plines, new_plines, 1)
+if old_plines in s:
+    s = s.replace(old_plines, new_plines, 1)
+elif 'function pLines(lines,opt={}){const a=Array.isArray(lines)' not in s:
+    raise SystemExit('Word pLines helper not found')
 
 # Prevent long Finding Notes text from escaping its Android card.
 s = s.replace(
@@ -75,9 +78,8 @@ s = s.replace(
 # Wrap PDF metadata inside the Finding Notes box.
 old_pdf = "const meta1=`PENEMU: ${String(f.finder_name||'-')}`;\n        const meta2=`TANGGAL: ${fmtDate(f.created_at)}  •  JAM: ${fmtTime(f.created_at)}`;\n        const meta3=`STATUS: ${status(f.status)}`;\n        const meta4=`AREA: ${String(f.area_code||area.name||'-')}  •  ID: ${String(f.finding_id||'-')}`;\n        const noteH=16+descLines.length*5.1+18;\n        if(y+noteH>H-25){footer();pdf.addPage();areaHeader(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`} • FINDING NOTES`);y=47;}\n        pdf.setFillColor(...FIND_BG);pdf.setDrawColor(...FIND_LINE);pdf.setLineWidth(.9);pdf.roundedRect(M,y,W-2*M,noteH,2.5,2.5,'FD');\n        pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.setTextColor(...FIND_TEXT);pdf.text('FINDING NOTES',M+6,y+7);\n        pdf.setFont('helvetica','bold');pdf.setFontSize(10);pdf.setTextColor(...FIND_TEXT);pdf.text(descLines,M+6,y+14);\n        let my=y+14+descLines.length*5.1+3;pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);pdf.setTextColor(...FIND_TEXT);pdf.text(meta1,M+6,my);pdf.text(meta2,M+6,my+4.5);pdf.text(meta3,M+6,my+9);pdf.text(meta4,M+6,my+13.5);y+=noteH+9;"
 new_pdf = "const metaLines=[`PENEMU: ${String(f.finder_name||'-')}`,`TANGGAL: ${fmtDate(f.created_at)}  •  JAM: ${fmtTime(f.created_at)}`,`STATUS: ${status(f.status)}`,`AREA: ${String(f.area_code||area.name||'-')}  •  ID: ${String(f.finding_id||'-')}`].flatMap(v=>pdf.splitTextToSize(v,W-2*M-12));\n        const noteH=16+descLines.length*5.1+metaLines.length*4.5+10;\n        if(y+noteH>H-25){footer();pdf.addPage();areaHeader(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`} • FINDING NOTES`);y=47;}\n        pdf.setFillColor(...FIND_BG);pdf.setDrawColor(...FIND_LINE);pdf.setLineWidth(.9);pdf.roundedRect(M,y,W-2*M,noteH,2.5,2.5,'FD');\n        pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.setTextColor(...FIND_TEXT);pdf.text('FINDING NOTES',M+6,y+7);\n        pdf.setFont('helvetica','bold');pdf.setFontSize(10);pdf.setTextColor(...FIND_TEXT);pdf.text(descLines,M+6,y+14);\n        let my=y+14+descLines.length*5.1+3;pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);pdf.setTextColor(...FIND_TEXT);pdf.text(metaLines,M+6,my);y+=noteH+9;"
-if old_pdf not in s:
-    raise SystemExit('PDF Finding Notes block not found')
-s = s.replace(old_pdf, new_pdf, 1)
+if old_pdf in s:
+    s = s.replace(old_pdf, new_pdf, 1)
 
 # Keep PDF endpoint separate from Finding Notes endpoint.
 marker = 'const PDF_UPLOAD_URL = '
