@@ -38,6 +38,12 @@ jobs:
           set -euo pipefail
           python3 tools/patch_android_js_dialogs.py
 
+      - name: Apply STT Finding Notes and export patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/patch_stt_finding_notes.py
+
       - name: Build assets from every root HTML module
         shell: bash
         run: |
