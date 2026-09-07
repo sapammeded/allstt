@@ -1860,6 +1860,7 @@ function setLogoUploadPassword(value){
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
 const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzCviYEAiSgox3M3XtP3KZe0EGZamMEUjY2oFZtw4KrYViX7NM-3kZ55jgyU_JjtKdQ/exec";
+const STT_FINDING_CENTRAL_URL = 'https://script.google.com/macros/s/AKfycbyAJ9CFiTESUWLiCF_x0APclk4U-Zd85jI6LfWjE22hN8nyS_9yDEf0-rYrObuwyf59lA/exec';
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -3200,16 +3201,23 @@ function setupSuperCleanup() {
       if(typeof window.STT_FINDING_NOTES_GET_AREA==='function') return window.STT_FINDING_NOTES_GET_AREA(areaName,areaKey)||[];
       const cache=JSON.parse(localStorage.getItem('STT_FINDING_CACHE_V2')||localStorage.getItem('STT_FINDING_CACHE_V1')||'{}');
       const list=Array.isArray(cache.findings)?cache.findings:[]; const target=String(areaName||'').trim().toLowerCase(); const key=String(areaKey??'');
-      return list.filter(f=>f&&f.status!=='fixed'&&((f.areaKey!=null&&String(f.areaKey)===key)||String(f.area||'').trim().toLowerCase()===target));
+      return list.filter(f=>{const st=String(f?.status||'').toUpperCase();return f&&st!=='FIXED'&&((f.areaKey!=null&&String(f.areaKey)===key)||String(f.area_code||f.area||'').trim().toLowerCase()===target);});
     }catch(e){return []}
   }
 
   function findingAlertHtml(areaName,areaKey){
     const list=getActiveFindingNotesForArea(areaName,areaKey);
     if(!list.length) return '';
+    const escLocal=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    const photosLocal=f=>{
+      const v=f?.photo_url;
+      if(Array.isArray(v)) return v.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(x=>/^https?:\/\//i.test(x));
+      if(!v) return [];
+      try{const a=JSON.parse(String(v));return Array.isArray(a)?a.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(x=>/^https?:\/\//i.test(x)):[];}catch(_){return String(v).split(',').map(x=>x.trim()).filter(x=>/^https?:\/\//i.test(x));}
+    };
     return `<div class="finding-area-alert">
       <div class="finding-area-title">⚠️ FINDING NOTES AKTIF (${list.length})</div>
-      ${list.map(f=>`<div class="finding-area-item">${String(f.content||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}${Array.isArray(f.photos)&&f.photos.length?`<div class="finding-photo-strip">${f.photos.map(p=>p?.data?`<img src="${p.data}" alt="Finding photo">`:'').join('')}</div>`:''}<div class="finding-area-meta">Status: ${String(f.status||'open').toUpperCase().replace('_',' ')} • Ditemukan: ${String(f.foundAt||'-')} • Petugas: ${String(f.foundBy||'-')}</div></div>`).join('')}
+      ${list.map(f=>{const photos=photosLocal(f);return `<div class="finding-area-item"><div>${escLocal(f.description||f.content||'-')}</div>${photos.length?`<div class="finding-photo-strip">${photos.map(p=>`<img src="${escLocal(p)}" alt="Finding photo">`).join('')}</div>`:''}<div class="finding-area-meta">Status: ${escLocal(String(f.status||'OPEN').toUpperCase())} • Ditemukan: ${escLocal(f.created_at||f.foundAt||'-')} • Petugas: ${escLocal(f.finder_name||f.foundBy||'-')}</div></div>`;}).join('')}
     </div>`;
   }
 
@@ -3791,46 +3799,23 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
     const centralPhotoCache=new Map();
     async function fetchWithTimeout(url,opts={},timeout=15000){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeout);try{return await fetch(url,Object.assign({},opts,{signal:c.signal}));}finally{clearTimeout(t);}}
     async function fetchRetry(url,opts={},timeout=15000,retries=2){let last;for(let i=0;i<=retries;i++){try{return await fetchWithTimeout(url,opts,timeout);}catch(e){last=e;if(i<retries)await new Promise(r=>setTimeout(r,500*(i+1)));}}throw last;}
-    function driveIdPdf(url){
-      const s=String(url||'').trim();
-      const m=s.match(/[?&]id=([A-Za-z0-9_-]{10,})/i)||s.match(/\/d\/([A-Za-z0-9_-]{10,})/i);
-      return m?m[1]:'';
-    }
-    function driveCandidatesPdf(url){
-      const s=String(url||'').trim(),id=driveIdPdf(s);
-      if(!id) return s?[s]:[];
-      return [
-        'https://drive.google.com/thumbnail?id='+encodeURIComponent(id)+'&sz=w1600',
-        'https://drive.google.com/uc?export=view&id='+encodeURIComponent(id),
-        'https://lh3.googleusercontent.com/d/'+encodeURIComponent(id)+'=w1600',
-        'https://drive.google.com/uc?export=download&id='+encodeURIComponent(id)
-      ];
-    }
     async function centralPhotoData(url){
       const src=String(url||'').trim();
       if(!src) return null;
       if(/^data:image\//i.test(src)) throw new Error('Central photo_url tidak boleh berisi data URL.');
       if(centralPhotoCache.has(src)) return centralPhotoCache.get(src);
       const promise=(async()=>{
-        const candidates=driveCandidatesPdf(src);
-        let lastErr=null;
-        for(const candidate of candidates){
-          try{
-            const r=await fetchRetry(candidate,{mode:'cors',cache:'no-store'},15000,2);
-            if(!r.ok) throw new Error('HTTP '+r.status);
-            const blob=await r.blob();
-            if(!blob||!blob.size) throw new Error('Gambar kosong');
-            return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
-          }catch(e){lastErr=e;}
-        }
         try{
+          const r=await fetchRetry(src,{mode:'cors',cache:'force-cache'},15000,2);
+          if(!r.ok) throw new Error('HTTP '+r.status);
+          const blob=await r.blob();
+          return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
+        }catch(fetchErr){
           const img=new Image(); img.crossOrigin='anonymous';
-          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=candidates[0]||src;});
+          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=src;});
           const c=document.createElement('canvas'); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
-          if(!c.width||!c.height) throw new Error('Dimensi gambar kosong');
           const ctx=c.getContext('2d'); ctx.drawImage(img,0,0); return c.toDataURL('image/jpeg',0.88);
-        }catch(e){lastErr=e;}
-        throw lastErr||new Error('Foto Finding tidak dapat dimuat');
+        }
       })();
       centralPhotoCache.set(src,promise);
       try{return await promise;}catch(e){centralPhotoCache.delete(src);throw e;}
@@ -3900,16 +3885,13 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
           }
         }
         const descLines=pdf.splitTextToSize(findingText(f),W-2*M-12);
-        const meta1=`PENEMU: ${String(f.finder_name||'-')}`;
-        const meta2=`TANGGAL: ${fmtDate(f.created_at)}  •  JAM: ${fmtTime(f.created_at)}`;
-        const meta3=`STATUS: ${status(f.status)}`;
-        const meta4=`AREA: ${String(f.area_code||area.name||'-')}  •  ID: ${String(f.finding_id||'-')}`;
-        const noteH=16+descLines.length*5.1+18;
+        const metaLines=[`PENEMU: ${String(f.finder_name||'-')}`,`TANGGAL: ${fmtDate(f.created_at)}  •  JAM: ${fmtTime(f.created_at)}`,`STATUS: ${status(f.status)}`,`AREA: ${String(f.area_code||area.name||'-')}  •  ID: ${String(f.finding_id||'-')}`].flatMap(v=>pdf.splitTextToSize(v,W-2*M-12));
+        const noteH=22+descLines.length*7.0+metaLines.length*5.2+14;
         if(y+noteH>H-25){footer();pdf.addPage();areaHeader(`AREA ${ai+1}: ${area.name||`Area ${ai+1}`} • FINDING NOTES`);y=47;}
-        pdf.setFillColor(...FIND_BG);pdf.setDrawColor(...FIND_LINE);pdf.setLineWidth(.9);pdf.roundedRect(M,y,W-2*M,noteH,2.5,2.5,'FD');
-        pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.setTextColor(...FIND_TEXT);pdf.text('FINDING NOTES',M+6,y+7);
-        pdf.setFont('helvetica','bold');pdf.setFontSize(10);pdf.setTextColor(...FIND_TEXT);pdf.text(descLines,M+6,y+14);
-        let my=y+14+descLines.length*5.1+3;pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);pdf.setTextColor(...FIND_TEXT);pdf.text(meta1,M+6,my);pdf.text(meta2,M+6,my+4.5);pdf.text(meta3,M+6,my+9);pdf.text(meta4,M+6,my+13.5);y+=noteH+9;
+        pdf.setFillColor(254,226,226);pdf.setDrawColor(220,38,38);pdf.setLineWidth(1);pdf.roundedRect(M,y,W-2*M,noteH,2.5,2.5,'FD');
+        pdf.setFont('helvetica','bold');pdf.setFontSize(12);pdf.setTextColor(185,28,28);pdf.text('FINDING NOTES',M+6,y+8);
+        pdf.setFont('helvetica','bold');pdf.setFontSize(12);pdf.setTextColor(185,28,28);pdf.text(descLines,M+6,y+18,{maxWidth:W-2*M-12});
+        let my=y+18+descLines.length*7.0+5;pdf.setFont('helvetica','bold');pdf.setFontSize(9);pdf.setTextColor(185,28,28);pdf.text(metaLines,M+6,my,{maxWidth:W-2*M-12});y+=noteH+10;
       }
       const notes=String(area.notes||area.globalDescription||'').trim();
       if(notes){pdf.setFont('helvetica','bold');pdf.setFontSize(8.5);pdf.setTextColor(...BLUE);pdf.text('CATATAN AREA',M,y);y+=5;pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);pdf.setTextColor(...TEXT);const nl=pdf.splitTextToSize(notes,W-2*M);pdf.text(nl,M,y);y+=nl.length*4.2+5;}
@@ -3923,12 +3905,28 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
   }catch(e){hideOverlay();console.error('[PDF]',e);alert('❌ Gagal membuat PDF: '+(e?.message||e));}
 });
 
+// ==================== WORD EXPORT ZIP ENGINE (ANDROID SAFE) ====================
+(function(){
+  if(window.STTMiniZip) return;
+  function crc32(bytes){let c=0xffffffff;for(let i=0;i<bytes.length;i++){c^=bytes[i];for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;}
+  function u16(a,n){a.push(n&255,(n>>>8)&255)} function u32(a,n){a.push(n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255)}
+  function enc(v){return new TextEncoder().encode(String(v??''));}
+  async function bytes(v){if(v instanceof Uint8Array)return v;if(v instanceof ArrayBuffer)return new Uint8Array(v);if(v instanceof Blob)return new Uint8Array(await v.arrayBuffer());return enc(v);}
+  class MiniZip{
+    constructor(prefix=''){this.prefix=prefix;this.entries=[];}
+    folder(name){return new MiniZip(this.prefix+String(name).replace(/\/?$/,'')+'/').attach(this);}
+    attach(root){this.root=root;return this;}
+    file(name,data){(this.root||this).entries.push({name:this.prefix+String(name).replace(/^\//,''),data});return this;}
+    async generateAsync(){const local=[],central=[],offsets=[];let off=0;for(const e of (this.root||this).entries){const name=enc(e.name),b=await bytes(e.data),c=crc32(b),h=[];u32(h,0x04034b50);u16(h,20);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,c);u32(h,b.length);u32(h,b.length);u16(h,name.length);u16(h,0);local.push(new Uint8Array([...h,...name,...b]));offsets.push(off);off+=h.length+name.length+b.length;}for(let i=0;i<(this.root||this).entries.length;i++){const e=(this.root||this).entries[i],name=enc(e.name),b=await bytes(e.data),c=crc32(b),h=[];u32(h,0x02014b50);u16(h,20);u16(h,20);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,c);u32(h,b.length);u32(h,b.length);u16(h,name.length);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,0);u32(h,offsets[i]);central.push(new Uint8Array([...h,...name]));}const cd=central.reduce((n,x)=>n+x.length,0),body=local.reduce((n,x)=>n+x.length,0),end=[];u32(end,0x06054b50);u16(end,0);u16(end,0);u16(end,(this.root||this).entries.length);u16(end,(this.root||this).entries.length);u32(end,cd);u32(end,body);u16(end,0);return new Blob([...local,...central,...[new Uint8Array(end)]],{type:'application/zip'});}
+  }
+  window.STTMiniZip=MiniZip;
+})();
+
 // ==================== WORD EXPORT — CENTRAL FINDING NOTES CONTRACT ====================
 document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
   try{
     signatureData=signatureData||localStorage.getItem('patrol_signature_v1')||null;
     signatureName=signatureName||localStorage.getItem('patrol_signature_name')||localStorage.getItem('patrol_signature_name_v1')||'';
-    if(!window.JSZip) throw new Error('Mesin Word DOCX belum siap. Pastikan internet aktif sekali untuk memuat JSZip.');
     const areaEntries=Object.entries(patrolData||{}).filter(([,a])=>!!a),areas=areaEntries.map(([,a])=>a),totalPhotos=areas.reduce((n,a)=>n+(Array.isArray(a.photos)?a.photos.length:0),0);
     if(!areas.length) throw new Error('Belum ada area patroli.'); if(!totalPhotos) throw new Error('Belum ada foto evidence patroli.');
     if(window.STT_FINDING_NOTES?.sync) await window.STT_FINDING_NOTES.sync();
@@ -3936,17 +3934,57 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
     showOverlay('Membuat Word Security Report (.DOCX)...');setOverlayProgress(5);
     const petugas=(document.getElementById('petugasName')?.value||'Petugas').trim(),tanggal=document.getElementById('tanggal')?.value||new Date().toISOString().slice(0,10),jam=document.getElementById('jam')?.value||new Date().toTimeString().slice(0,5),generated=new Date().toLocaleString('id-ID');
     const safe=v=>String(v??'').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80),xml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'),escText=v=>String(v??'').replace(/\r/g,'').split('\n');
-    const zip=new JSZip(),media=[];let rid=1;
+    const zip=new (window.JSZip||window.STTMiniZip)(),media=[];let rid=1;
+    async function fetchWithTimeoutWord(url,opts={},timeout=15000){
+      const c=new AbortController();
+      const t=setTimeout(()=>c.abort(),timeout);
+      try{return await fetch(url,Object.assign({},opts,{signal:c.signal}));}
+      finally{clearTimeout(t);}
+    }
+    async function fetchRetryWord(url,opts={},timeout=15000,retries=2){
+      let last;
+      for(let i=0;i<=retries;i++){
+        try{
+          const r=await fetchWithTimeoutWord(url,opts,timeout);
+          if(r.ok || r.type==='opaque') return r;
+          throw new Error('HTTP '+r.status);
+        }catch(e){
+          last=e;
+          if(i<retries) await new Promise(r=>setTimeout(r,600*(i+1)));
+        }
+      }
+      throw last||new Error('Gagal mengambil gambar.');
+    }
+    async function photoDataWord(p){
+      if(p&&typeof p==='object'&&p.ref){
+        const b=await idbGet(STORE_BLOBS,p.ref);
+        return b?await blobToBase64(b):null;
+      }
+      const src=String(p||'').trim();
+      if(!src) return null;
+      if(/^data:image\//i.test(src)) return src;
+      if(/^https?:\/\//i.test(src)){
+        try{
+          const r=await fetchRetryWord(src,{mode:'cors',cache:'no-store'},15000,2);
+          if(r.ok){const b=await r.blob();return await blobToBase64(b);}
+        }catch(_){ }
+        // Google Drive image URLs can be redirected; try a browser image and
+        // convert only when the source permits anonymous canvas access.
+        try{
+          const img=new Image();img.crossOrigin='anonymous';
+          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=src;});
+          const c=document.createElement('canvas');c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;
+          c.getContext('2d').drawImage(img,0,0);return c.toDataURL('image/jpeg',0.9);
+        }catch(_){ return null; }
+      }
+      return null;
+    }
     function areaKey(v){return String(v??'').trim().replace(/\s+/g,' ').toLowerCase();} function findingsForArea(name){const k=areaKey(name);return central.filter(f=>areaKey(f.area_code)===k&&String(f.finding_id||'').trim());}
     function findingPhotos(f){const v=f?.photo_url;if(Array.isArray(v))return v.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(Boolean);if(!v)return [];try{const a=JSON.parse(String(v));return Array.isArray(a)?a.map(x=>typeof x==='string'?x:String(x?.url||'')).filter(Boolean):[String(v)];}catch(_){return String(v).split(',').map(x=>x.trim()).filter(Boolean);}}
     function fmtDate(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleDateString('id-ID');}function fmtTime(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}function status(v){return String(v||'OPEN').toUpperCase();}
     function ridFor(data,mime){if(!data)return null;const id='rIdImg'+(rid++);let raw=String(data),ext='jpg',m=String(mime||((String(data).match(/^data:([^;]+);/)||[])[1])||'image/jpeg').toLowerCase();if(m.includes('png'))ext='png';else if(m.includes('gif'))ext='gif';if(raw.includes(','))raw=raw.split(',').slice(1).join(',');media.push({id,path:`word/media/image${media.length+1}.${ext}`,raw,mime:m,ext});return id;}
     function pText(text,opt={}){const bold=opt.bold?'<w:b/>':'',size=opt.size?`<w:sz w:val="${opt.size*2}"/><w:szCs w:val="${opt.size*2}"/>`:'',color=opt.color?`<w:color w:val="${opt.color}"/>`:'';return `<w:p><w:pPr>${opt.align?`<w:jc w:val="${opt.align}"/>`:''}${opt.before?`<w:spacing w:before="${opt.before}"/>`:''}${opt.after?`<w:spacing w:after="${opt.after}"/>`:''}</w:pPr><w:r><w:rPr>${bold}${size}${color}</w:rPr><w:t xml:space="preserve">${xml(text)}</w:t></w:r></w:p>`;}
-    function pLines(lines,opt={}){const a=Array.isArray(lines)?lines:String(lines==null?'':lines).replace(/\r/g,'').split('\n');return a.map((x,i)=>pText(x,{...opt,after:i===a.length-1?(opt.after??80):0})).join('');}
-    async function photoDataWord(p){
-      if(p&&typeof p==='object'&&p.ref){const b=await idbGet(STORE_BLOBS,p.ref);return b?await blobToBase64(b):null;}
-      return typeof p==='string'?p:null;
-    }
+    function pLines(lines,opt={}){const raw=Array.isArray(lines)?lines:String(lines==null?'':lines).split(/\r?\n/),out=[];raw.forEach(line=>{let r=String(line||'');if(!r){out.push('');return;}while(r.length>88){let cut=r.lastIndexOf(' ',88);if(cut<42)cut=88;out.push(r.slice(0,cut).trim());r=r.slice(cut).trim();}out.push(r);});return out.map((x,i)=>pText(x,{...opt,after:i===out.length-1?(opt.after??80):0})).join('');}
     function imageRun(data,wCm,hCm){const id=ridFor(data);if(!id)return '';const cx=Math.round(wCm*360000),cy=Math.round(hCm*360000);return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${rid++}" name="STT Image"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="image"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;}
     function pImage(data,w,h,align='center'){return `<w:p><w:pPr><w:jc w:val="${align}"/></w:pPr>${imageRun(data,w,h)}</w:p>`;}
     function cell(content,width,shade){return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${shade?`<w:shd w:fill="${shade}"/>`:''}</w:tcPr>${content}</w:tc>`;}
@@ -3970,8 +4008,8 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
           body+=pText('Foto Finding tidak tersedia.',{align:'center',size:9,color:'69707A',after:45});
         }
         const descLines=escText(String(f.description??'').trim()||'-');
-        let fb=pText('FINDING NOTES',{bold:true,size:15,color:'7F1D1D',after:55})+pLines(descLines,{bold:true,size:11,color:'7F1D1D',after:55})+pText(`PENEMU: ${String(f.finder_name||'-')}`,{bold:true,size:9,color:'7F1D1D',after:25})+pText(`TANGGAL: ${fmtDate(f.created_at)} • JAM: ${fmtTime(f.created_at)}`,{bold:true,size:9,color:'7F1D1D',after:25})+pText(`STATUS: ${status(f.status)}`,{bold:true,size:9,color:'7F1D1D',after:25})+pText(`AREA: ${String(f.area_code||area.name||'-')} • ID: ${String(f.finding_id||'-')}`,{bold:true,size:9,color:'7F1D1D',after:60});
-        body+=shadedBlock(fb,'FCE7F3','F472B6');
+        let fb=pText('FINDING NOTES',{bold:true,size:17,color:'B91C1C',after:35})+pLines(descLines,{bold:true,size:14,color:'B91C1C',after:35})+pText(`PENEMU: ${String(f.finder_name||'-')}`,{bold:true,size:10,color:'B91C1C',after:18})+pText(`TANGGAL: ${fmtDate(f.created_at)} • JAM: ${fmtTime(f.created_at)}`,{bold:true,size:10,color:'B91C1C',after:18})+pText(`STATUS: ${status(f.status)}`,{bold:true,size:10,color:'B91C1C',after:18})+pText(`AREA: ${String(f.area_code||area.name||'-')} • ID: ${String(f.finding_id||'-')}`,{bold:true,size:10,color:'B91C1C',after:45});
+        body+=shadedBlock(fb,'FEE2E2','DC2626');
       }
       const notes=String(area.notes||area.globalDescription||'').trim();if(notes)body+=pText('CATATAN AREA',{bold:true,size:10,color:'144891',after:30})+pLines(escText(notes),{size:10,after:80});
       for(let i=0;i<photos.length;i++){const src=await photoDataWord(photos[i]);const desc=String(area.descriptions?.[i]||DEFAULT_PATROL_DESCRIPTION).trim()||DEFAULT_PATROL_DESCRIPTION;const left=src?pImage(src,7.2,6.8):pText('Foto tidak tersedia',{align:'center',size:10});const right=pText(`Foto ${i+1}`,{bold:true,size:11,color:'144891',after:50})+pLines(escText(desc),{size:10,after:20});body+=table([[left,right]],[4680,4680])+pText('',{after:70});done++;setOverlayProgress(5+Math.round(done/Math.max(1,totalPhotos)*80));}
@@ -3981,7 +4019,7 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
     const sectPr='<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr>';const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sectPr}</w:body></w:document>`;
     zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>`+'</Types>');zip.folder('_rels').file('.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
     const wr=zip.folder('word').folder('_rels');let rel=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;media.forEach(m=>rel+=`<Relationship Id="${m.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.path.split('/').pop()}"/>`);rel+='</Relationships>';wr.file('document.xml.rels',rel);zip.folder('word').file('document.xml',documentXml);zip.folder('word').file('styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80"/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>`);
-    async function dataToBytes(data){const str=String(data||'').trim();if(!str)throw new Error('Data gambar kosong.');if(/^data:/i.test(str)){const comma=str.indexOf(',');if(comma<0)throw new Error('Data URL gambar tidak valid.');const meta=str.slice(0,comma).toLowerCase(),payload=str.slice(comma+1);if(meta.includes(';base64')){let raw=payload.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');try{raw=decodeURIComponent(raw)}catch(_){}while(raw.length%4)raw+='=';return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}return new Uint8Array(await (await fetch(str)).arrayBuffer());}if(/^https?:/i.test(str))return new Uint8Array(await (await fetchRetry(str,{mode:'cors',cache:'force-cache'},15000,2)).arrayBuffer());throw new Error('Sumber gambar Word harus URL Central atau data lokal yang valid.');}
+    async function dataToBytes(data){const str=String(data||'').trim();if(!str)throw new Error('Data gambar kosong.');if(/^data:/i.test(str)){const comma=str.indexOf(',');if(comma<0)throw new Error('Data URL gambar tidak valid.');const meta=str.slice(0,comma).toLowerCase(),payload=str.slice(comma+1);if(meta.includes(';base64')){let raw=payload.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');try{raw=decodeURIComponent(raw)}catch(_){}while(raw.length%4)raw+='=';return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}return new Uint8Array(await (await fetch(str)).arrayBuffer());}if(/^https?:/i.test(str))return new Uint8Array(await (await fetchRetryWord(str,{mode:'cors',cache:'force-cache'},15000,2)).arrayBuffer());throw new Error('Sumber gambar Word harus URL Central atau data lokal yang valid.');}
     for(const m of media){const bytes=await dataToBytes(m.raw);zip.folder('word').folder('media').file(m.path.split('/').pop(),bytes);}setOverlayProgress(95);const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'});const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);const rawShift=String(document.getElementById('shift')?.value||'').trim();const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.docx`;const saved=await saveBlobToPreferredFolder(blob,filename);if(!saved){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}setOverlayProgress(100);hideOverlay();alert(`✅ WORD SECURITY REPORT DOCX SELESAI📥 ${filename}Editable: teks dan gambar dapat diedit/diganti di Microsoft Word.`);
   }catch(e){hideOverlay();console.error('[WORD DOCX]',e);alert('❌ Gagal membuat Word DOCX: '+(e?.message||e));}
 });
@@ -4521,11 +4559,11 @@ renderAreas();
 #findingNotesSection .fn-area-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:2px solid #e2e8f0;padding-bottom:12px}
 #findingNotesSection .fn-area-title{font-size:24px;font-weight:950;color:var(--primary);line-height:1.2}
 #findingNotesSection .fn-area-count{font-size:13px;font-weight:800;color:#64748b}
-#findingNotesSection .fn-finding-card{margin-top:14px;border:3px solid #dc2626;border-radius:16px;background:#fff;padding:16px;box-shadow:0 4px 16px rgba(15,23,42,.08)}
+#findingNotesSection .fn-finding-card{margin-top:14px;border:3px solid #dc2626;border-radius:16px;background:#fef2f2;padding:16px;box-shadow:0 4px 16px rgba(15,23,42,.08);min-width:0;overflow:hidden;overflow-wrap:anywhere}
 #findingNotesSection .fn-finding-card.fixed{border-color:#16a34a;background:#f7fff9}
 #findingNotesSection .fn-finding-title{font-size:19px;font-weight:950;color:#991b1b;margin-bottom:8px}
 #findingNotesSection .fn-finding-card.fixed .fn-finding-title{color:#166534}
-#findingNotesSection .fn-notes-box{width:100%;min-height:220px;box-sizing:border-box;border:3px solid #94a3b8;border-radius:13px;background:#fff;padding:15px;font-size:20px;line-height:1.55;font-weight:800;white-space:pre-wrap;overflow-wrap:anywhere;resize:vertical}
+#findingNotesSection .fn-notes-box{display:block;width:100%;max-width:100%;min-width:0;min-height:220px;box-sizing:border-box;border:3px solid #dc2626;border-radius:13px;background:#fee2e2;color:#991b1b;padding:15px;font-size:22px;line-height:1.58;font-weight:900;white-space:pre-wrap;overflow:auto;overflow-wrap:anywhere;word-break:break-word;resize:vertical}
 #findingNotesSection .fn-meta{font-size:14px;font-weight:800;color:#334155;line-height:1.6;margin-top:10px}
 #findingNotesSection .fn-status{font-size:16px;font-weight:950;margin:10px 0}
 #findingNotesSection .fn-status label{display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer}
@@ -4538,7 +4576,7 @@ renderAreas();
 #findingNotesSection .fn-empty{padding:16px;text-align:center;border:2px dashed #cbd5e1;border-radius:12px;color:#64748b;font-weight:700;margin-top:12px}
 #findingNotesSection .fn-red-warning{background:#dc2626;color:#fff;border:3px solid #991b1b;border-radius:13px;padding:13px;margin:10px 0;font-size:20px;font-weight:950;line-height:1.45}
 #findingNotesSection .fn-new-box{margin-top:14px;padding:14px;border:3px dashed #2563eb;border-radius:14px;background:#eff6ff}
-#findingNotesSection .fn-new-box textarea{width:100%;min-height:240px;box-sizing:border-box;font-size:20px;font-weight:800;line-height:1.55;padding:15px;border:3px solid #2563eb;border-radius:12px;resize:vertical}
+#findingNotesSection .fn-new-box textarea{display:block;width:100%;max-width:100%;min-width:0;min-height:240px;box-sizing:border-box;font-size:22px;font-weight:900;line-height:1.58;padding:15px;border:3px solid #dc2626;border-radius:12px;background:#fee2e2;color:#991b1b;resize:vertical;overflow:auto;overflow-wrap:anywhere;word-break:break-word}
 #findingNotesSection .fn-new-label{font-size:17px;font-weight:950;color:#1e3a8a;margin-bottom:7px;display:block}
 #fnTemplateModal,#sttAreaTemplateModal{display:none;position:fixed;inset:0;background:rgba(2,8,23,.62);z-index:2147483000;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
 #fnTemplateModal .fn-modal,#sttAreaTemplateModal .atm-box{background:#fff;border-radius:20px;padding:22px;width:min(720px,100%);max-height:88vh;overflow:auto;box-shadow:0 20px 70px rgba(0,0,0,.3);box-sizing:border-box}
@@ -4574,7 +4612,7 @@ renderAreas();
 
 <script id="STT_CENTRAL_FINDING_NOTES_V16">
 (function(){'use strict';
-const API=(typeof PDF_UPLOAD_URL==='string'&&PDF_UPLOAD_URL.trim())?PDF_UPLOAD_URL.trim():'';
+const API=(typeof STT_FINDING_CENTRAL_URL==='string'&&STT_FINDING_CENTRAL_URL.trim())?STT_FINDING_CENTRAL_URL.trim():'https://script.google.com/macros/s/AKfycbyAJ9CFiTESUWLiCF_x0APclk4U-Zd85jI6LfWjE22hN8nyS_9yDEf0-rYrObuwyf59lA/exec';
 const CACHE='STT_FINDING_CENTRAL_CACHE_V16';
 const PENDING_DB='patrol_db_v1', PENDING_STORE='findingPending';
 const REQUEST_TIMEOUT=12000, UPLOAD_TIMEOUT=20000, RETRIES=2;
