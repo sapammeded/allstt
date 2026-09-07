@@ -3794,20 +3794,36 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
     async function centralPhotoData(url){
       const src=String(url||'').trim();
       if(!src) return null;
-      if(/^data:image\//i.test(src)) throw new Error('Central photo_url tidak boleh berisi data URL.');
+      if(/^data:image\//i.test(src)) return src;
       if(centralPhotoCache.has(src)) return centralPhotoCache.get(src);
       const promise=(async()=>{
-        try{
-          const r=await fetchRetry(src,{mode:'cors',cache:'force-cache'},15000,2);
-          if(!r.ok) throw new Error('HTTP '+r.status);
-          const blob=await r.blob();
-          return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
-        }catch(fetchErr){
-          const img=new Image(); img.crossOrigin='anonymous';
-          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=src;});
-          const c=document.createElement('canvas'); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
-          const ctx=c.getContext('2d'); ctx.drawImage(img,0,0); return c.toDataURL('image/jpeg',0.88);
+        const candidates=[];
+        const m=src.match(/[?&]id=([A-Za-z0-9_-]{10,})/i)||src.match(/\/d\/([A-Za-z0-9_-]{10,})/i);
+        if(m&&m[1]){
+          const id=encodeURIComponent(m[1]);
+          candidates.push('https://drive.google.com/thumbnail?id='+id+'&sz=w1600');
+          candidates.push('https://drive.google.com/uc?export=view&id='+id);
+          candidates.push('https://lh3.googleusercontent.com/d/'+id+'=w1600');
+          candidates.push('https://drive.google.com/uc?export=download&id='+id);
+        }else candidates.push(src);
+        let lastErr=null;
+        for(const candidate of candidates){
+          try{
+            const r=await fetchRetry(candidate,{mode:'cors',cache:'no-store'},15000,2);
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            const blob=await r.blob();
+            if(!blob||!blob.size) throw new Error('Gambar kosong');
+            return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
+          }catch(e){lastErr=e;}
         }
+        try{
+          const img=new Image();img.crossOrigin='anonymous';
+          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=candidates[0]||src;});
+          const c=document.createElement('canvas');c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;
+          if(!c.width||!c.height) throw new Error('Dimensi gambar kosong');
+          c.getContext('2d').drawImage(img,0,0);return c.toDataURL('image/jpeg',0.9);
+        }catch(e){lastErr=e;}
+        throw lastErr||new Error('Foto Finding tidak dapat dimuat');
       })();
       centralPhotoCache.set(src,promise);
       try{return await promise;}catch(e){centralPhotoCache.delete(src);throw e;}
@@ -3919,7 +3935,7 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
     function fmtDate(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleDateString('id-ID');}function fmtTime(v){if(!v)return '-';const d=new Date(v);return isNaN(d.getTime())?String(v):d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}function status(v){return String(v||'OPEN').toUpperCase();}
     function ridFor(data,mime){if(!data)return null;const id='rIdImg'+(rid++);let raw=String(data),ext='jpg',m=String(mime||((String(data).match(/^data:([^;]+);/)||[])[1])||'image/jpeg').toLowerCase();if(m.includes('png'))ext='png';else if(m.includes('gif'))ext='gif';if(raw.includes(','))raw=raw.split(',').slice(1).join(',');media.push({id,path:`word/media/image${media.length+1}.${ext}`,raw,mime:m,ext});return id;}
     function pText(text,opt={}){const bold=opt.bold?'<w:b/>':'',size=opt.size?`<w:sz w:val="${opt.size*2}"/><w:szCs w:val="${opt.size*2}"/>`:'',color=opt.color?`<w:color w:val="${opt.color}"/>`:'';return `<w:p><w:pPr>${opt.align?`<w:jc w:val="${opt.align}"/>`:''}${opt.before?`<w:spacing w:before="${opt.before}"/>`:''}${opt.after?`<w:spacing w:after="${opt.after}"/>`:''}</w:pPr><w:r><w:rPr>${bold}${size}${color}</w:rPr><w:t xml:space="preserve">${xml(text)}</w:t></w:r></w:p>`;}
-    function pLines(lines,opt={}){return lines.map((x,i)=>pText(x,{...opt,after:i===lines.length-1?(opt.after??80):0})).join('');}
+    function pLines(lines,opt={}){const a=Array.isArray(lines)?lines:String(lines==null?'':lines).split(/\r?\n/);return a.map((x,i)=>pText(x,{...opt,after:i===a.length-1?(opt.after??80):0})).join('');}
     function imageRun(data,wCm,hCm){const id=ridFor(data);if(!id)return '';const cx=Math.round(wCm*360000),cy=Math.round(hCm*360000);return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${rid++}" name="STT Image"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="image"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;}
     function pImage(data,w,h,align='center'){return `<w:p><w:pPr><w:jc w:val="${align}"/></w:pPr>${imageRun(data,w,h)}</w:p>`;}
     function cell(content,width,shade){return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${shade?`<w:shd w:fill="${shade}"/>`:''}</w:tcPr>${content}</w:tc>`;}
