@@ -33,6 +33,13 @@ new_block = '''  function findingAlertHtml(areaName,areaKey){
 '''
 s = s[:start] + new_block + s[end:]
 
+# Fixed findings must not appear in the active alert. CENTRAL uses uppercase
+# status values, while the legacy code checked lowercase 'fixed'.
+old_filter = "return list.filter(f=>f&&f.status!=='fixed'&&((f.areaKey!=null&&String(f.areaKey)===key)||String(f.area||'').trim().toLowerCase()===target));"
+new_filter = "return list.filter(f=>{const st=String(f?.status||'').toUpperCase();return f&&st!=='FIXED'&&((f.areaKey!=null&&String(f.areaKey)===key)||String(f.area_code||f.area||'').trim().toLowerCase()===target);});"
+if old_filter in s:
+    s = s.replace(old_filter, new_filter, 1)
+
 # Word export called photoDataWord(), but that helper did not exist.
 word_anchor = "    const zip=new JSZip(),media=[];let rid=1;"
 if word_anchor not in s:
