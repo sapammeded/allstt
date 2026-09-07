@@ -3913,14 +3913,38 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
   function enc(v){return new TextEncoder().encode(String(v??''));}
   async function bytes(v){if(v instanceof Uint8Array)return v;if(v instanceof ArrayBuffer)return new Uint8Array(v);if(v instanceof Blob)return new Uint8Array(await v.arrayBuffer());return enc(v);}
   class MiniZip{
-    constructor(prefix=''){this.prefix=prefix;this.entries=[];}
-    folder(name){return new MiniZip(this.prefix+String(name).replace(/\/?$/,'')+'/').attach(this);}
-    attach(root){this.root=root;return this;}
-    file(name,data){(this.root||this).entries.push({name:this.prefix+String(name).replace(/^\//,''),data});return this;}
-    async generateAsync(){const local=[],central=[],offsets=[];let off=0;for(const e of (this.root||this).entries){const name=enc(e.name),b=await bytes(e.data),c=crc32(b),h=[];u32(h,0x04034b50);u16(h,20);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,c);u32(h,b.length);u32(h,b.length);u16(h,name.length);u16(h,0);local.push(new Uint8Array([...h,...name,...b]));offsets.push(off);off+=h.length+name.length+b.length;}for(let i=0;i<(this.root||this).entries.length;i++){const e=(this.root||this).entries[i],name=enc(e.name),b=await bytes(e.data),c=crc32(b),h=[];u32(h,0x02014b50);u16(h,20);u16(h,20);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,c);u32(h,b.length);u32(h,b.length);u16(h,name.length);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,0);u32(h,offsets[i]);central.push(new Uint8Array([...h,...name]));}const cd=central.reduce((n,x)=>n+x.length,0),body=local.reduce((n,x)=>n+x.length,0),end=[];u32(end,0x06054b50);u16(end,0);u16(end,0);u16(end,(this.root||this).entries.length);u16(end,(this.root||this).entries.length);u32(end,cd);u32(end,body);u16(end,0);return new Blob([...local,...central,...[new Uint8Array(end)]],{type:'application/zip'});}
+    constructor(prefix='',root=null){this.prefix=prefix;this.root=root||this;this.entries=this.root===this?[]:this.root.entries;}
+    folder(name){return new MiniZip(this.prefix+String(name).replace(/\/?$/,'')+'/',this.root);}
+    file(name,data){this.root.entries.push({name:this.prefix+String(name).replace(/^\//,''),data});return this;}
+    async generateAsync(){const root=this.root||this,local=[],central=[],offsets=[];let off=0;for(const e of root.entries){const name=enc(e.name),b=await bytes(e.data),c=crc32(b),h=[];u32(h,0x04034b50);u16(h,20);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,c);u32(h,b.length);u32(h,b.length);u16(h,name.length);u16(h,0);local.push(new Uint8Array([...h,...name,...b]));offsets.push(off);off+=h.length+name.length+b.length;}for(let i=0;i<root.entries.length;i++){const e=root.entries[i],name=enc(e.name),b=await bytes(e.data),c=crc32(b),h=[];u32(h,0x02014b50);u16(h,20);u16(h,20);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,c);u32(h,b.length);u32(h,b.length);u16(h,name.length);u16(h,0);u16(h,0);u16(h,0);u16(h,0);u32(h,0);u32(h,offsets[i]);central.push(new Uint8Array([...h,...name]));}const cd=central.reduce((n,x)=>n+x.length,0),body=local.reduce((n,x)=>n+x.length,0),end=[];u32(end,0x06054b50);u16(end,0);u16(end,0);u16(end,root.entries.length);u16(end,root.entries.length);u32(end,cd);u32(end,body);u16(end,0);return new Blob([...local,...central,[new Uint8Array(end)]],{type:'application/zip'});}
   }
   window.STTMiniZip=MiniZip;
 })();
+
+// ==================== WORD EXPORT — GLOBAL FETCH SAFETY ====================
+// Word export must never depend on a function scoped to the PDF exporter.
+// Keep one global retry helper available to every exporter/runtime patch.
+window.STT_FETCH_RETRY = window.STT_FETCH_RETRY || (async function(url, opts={}, timeout=15000, retries=2){
+  let lastErr;
+  for(let i=0;i<=retries;i++){
+    const controller = typeof AbortController==='function' ? new AbortController() : null;
+    let timer = null;
+    try{
+      const requestOpts = Object.assign({}, opts || {});
+      if(controller){ requestOpts.signal = controller.signal; timer=setTimeout(()=>{try{controller.abort();}catch(_){ }}, timeout); }
+      const response = await fetch(url, requestOpts);
+      if(response && (response.ok || response.type==='opaque')) return response;
+      throw new Error('HTTP '+(response?.status||0));
+    }catch(err){
+      lastErr=err;
+      if(i<retries) await new Promise(r=>setTimeout(r,600*(i+1)));
+    }finally{ if(timer) clearTimeout(timer); }
+  }
+  throw lastErr || new Error('Gagal mengambil data dari server.');
+});
+// Backward-compatible name: any legacy helper that still calls fetchRetry()
+// gets the same safe implementation instead of ReferenceError.
+window.fetchRetry = window.fetchRetry || window.STT_FETCH_RETRY;
 
 // ==================== WORD EXPORT — CENTRAL FINDING NOTES CONTRACT ====================
 document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
@@ -3941,20 +3965,7 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
       try{return await fetch(url,Object.assign({},opts,{signal:c.signal}));}
       finally{clearTimeout(t);}
     }
-    async function fetchRetryWord(url,opts={},timeout=15000,retries=2){
-      let last;
-      for(let i=0;i<=retries;i++){
-        try{
-          const r=await fetchWithTimeoutWord(url,opts,timeout);
-          if(r.ok || r.type==='opaque') return r;
-          throw new Error('HTTP '+r.status);
-        }catch(e){
-          last=e;
-          if(i<retries) await new Promise(r=>setTimeout(r,600*(i+1)));
-        }
-      }
-      throw last||new Error('Gagal mengambil gambar.');
-    }
+    const fetchRetryWord = window.STT_FETCH_RETRY;
     async function photoDataWord(p){
       if(p&&typeof p==='object'&&p.ref){
         const b=await idbGet(STORE_BLOBS,p.ref);
@@ -3989,7 +4000,7 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
     function pImage(data,w,h,align='center'){return `<w:p><w:pPr><w:jc w:val="${align}"/></w:pPr>${imageRun(data,w,h)}</w:p>`;}
     function cell(content,width,shade){return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${shade?`<w:shd w:fill="${shade}"/>`:''}</w:tcPr>${content}</w:tc>`;}
     function table(rows,widths){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DCE4"/><w:left w:val="single" w:sz="4" w:color="D7DCE4"/><w:bottom w:val="single" w:sz="4" w:color="D7DCE4"/><w:right w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideH w:val="single" w:sz="4" w:color="D7DCE4"/><w:insideV w:val="single" w:sz="4" w:color="D7DCE4"/></w:tblBorders></w:tblPr>${rows.map(r=>`<w:tr>${r.map((c,i)=>cell(c,widths[i]||3120)).join('')}</w:tr>`).join('')}</w:tbl>`;}
-    function shadedBlock(content,shade='FCE7F3',border='F472B6'){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="8" w:color="${border}"/><w:left w:val="single" w:sz="8" w:color="${border}"/><w:bottom w:val="single" w:sz="8" w:color="${border}"/><w:right w:val="single" w:sz="8" w:color="${border}"/></w:tblBorders></w:tblPr><w:tr><w:tc><w:tcPr><w:tcW w:w="9360" w:type="dxa"/><w:shd w:fill="${shade}"/><w:tcMar><w:top w:w="160" w:type="dxa"/><w:left w:w="180" w:type="dxa"/><w:bottom w:w="160" w:type="dxa"/><w:right w:w="180" w:type="dxa"/></w:tcMar></w:tcPr>${content}</w:tc></w:tr></w:tbl>`;}
+    function shadedBlock(content,shade='FEE2E2',border='DC2626'){return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="single" w:sz="10" w:color="${border}"/><w:left w:val="single" w:sz="10" w:color="${border}"/><w:bottom w:val="single" w:sz="10" w:color="${border}"/><w:right w:val="single" w:sz="10" w:color="${border}"/></w:tblBorders></w:tblPr><w:tr><w:cantSplit/><w:tc><w:tcPr><w:tcW w:w="9360" w:type="dxa"/><w:tcFitText w:val="0"/><w:shd w:fill="${shade}"/><w:tcMar><w:top w:w="180" w:type="dxa"/><w:left w:w="220" w:type="dxa"/><w:bottom w:w="180" w:type="dxa"/><w:right w:w="220" w:type="dxa"/></w:tcMar></w:tcPr>${content}</w:tc></w:tr></w:tbl>`;}
     function headerBlock(){const l=logoData||'',r=logoDataRight||'',lc=l?pImage(l,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9}),rc=r?pImage(r,2.7,2.7):pText('LOGO',{align:'center',bold:true,size:9}),center=pText(companyName||'NAMA PERUSAHAAN',{align:'center',bold:true,size:16,color:'144891',after:30})+pText(companyAddress||'ALAMAT PERUSAHAAN',{align:'center',size:9,after:30})+pText('SECURITY PATROL & INCIDENT DOCUMENTATION',{align:'center',bold:true,size:9,color:'144891',after:40});return table([[lc,center,rc]],[1800,5760,1800])+pText('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',{align:'center',size:8,color:'144891',after:100});}
     let body=headerBlock()+pText('LAPORAN PATROLI SECURITY',{align:'center',bold:true,size:18,color:'144891',after:120});body+=table([[pText(`Petugas: ${petugas}`,{bold:true,size:10}),pText(`Tanggal: ${tanggal}`,{bold:true,size:10}),pText(`Jam: ${jam}`,{bold:true,size:10})],[pText(`Generated: ${generated}`,{size:9}),pText('STT SECURITY REPORT',{bold:true,size:9,color:'144891'}),pText('CENTRAL FINDING NOTES',{bold:true,size:9,color:'144891'})]],[3120,3120,3120]);if(officerPhotoDataUrl)body+=pText('FOTO PETUGAS SECURITY',{align:'center',bold:true,size:10,after:40})+pImage(officerPhotoDataUrl,6.0,6.5)+pText('',{after:100});
     let done=0;
@@ -4001,8 +4012,11 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
         // Central Finding Notes: all photos first, arranged as a compact 2-column grid.
         if(urls.length){
           for(let pi=0;pi<urls.length;pi+=2){
-            const a=urls[pi],b=urls[pi+1];
-            body+=table([[pImage(a,4.1,3.15)+pText(`Foto ${pi+1}/${urls.length}`,{align:'center',size:8,color:'69707A',after:25}),b?pImage(b,4.1,3.15)+pText(`Foto ${pi+2}/${urls.length}`,{align:'center',size:8,color:'69707A',after:25}):pText('',{after:25})]],[4680,4680])+pText('',{after:35});
+            const a=await photoDataWord(urls[pi]);
+            const b=urls[pi+1]?await photoDataWord(urls[pi+1]):null;
+            const left=(a?pImage(a,4.1,3.15):pText('Foto tidak tersedia',{align:'center',size:9,color:'69707A'}))+pText(`Foto ${pi+1}/${urls.length}`,{align:'center',size:8,color:'69707A',after:25});
+            const right=b?(pImage(b,4.1,3.15)+pText(`Foto ${pi+2}/${urls.length}`,{align:'center',size:8,color:'69707A',after:25})):pText('',{after:25});
+            body+=table([[left,right]],[4680,4680])+pText('',{after:35});
           }
         } else {
           body+=pText('Foto Finding tidak tersedia.',{align:'center',size:9,color:'69707A',after:45});
