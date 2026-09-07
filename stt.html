@@ -1801,6 +1801,34 @@ body:not(.admin-unlocked) #companySection{display:none !important;}
 </div>
 
 <script>
+// ==================== GLOBAL FETCH RETRY ====================
+// Shared by PDF Export, Word Export, and other runtime modules.
+window.fetchRetry = window.fetchRetry || (async function fetchRetry(url, opts = {}, timeout = 15000, retries = 2) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    let timer = null;
+    try {
+      const requestOpts = Object.assign({}, opts || {});
+      if (controller) {
+        requestOpts.signal = controller.signal;
+        timer = setTimeout(() => { try { controller.abort(); } catch (_) {} }, timeout);
+      }
+      const response = await fetch(url, requestOpts);
+      if (response && (response.ok || response.type === 'opaque')) return response;
+      throw new Error('HTTP ' + (response?.status || 0));
+    } catch (err) {
+      lastErr = err;
+      if (i < retries) await new Promise(resolve => setTimeout(resolve, 600 * (i + 1)));
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+  throw lastErr || new Error('Gagal mengambil data dari server.');
+});
+
+const fetchRetry = window.fetchRetry;
+
 // ==================== KONFIGURASI AWAL ====================
 // GANTI URL LOGO DEFAULT DI SINI:
 const DEFAULT_LOGO_URL = "https://i.ibb.co.com/dJV2bjQR/IMG-20251123-001741.png";
@@ -3798,7 +3826,6 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
     }
     const centralPhotoCache=new Map();
     async function fetchWithTimeout(url,opts={},timeout=15000){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeout);try{return await fetch(url,Object.assign({},opts,{signal:c.signal}));}finally{clearTimeout(t);}}
-    async function fetchRetry(url,opts={},timeout=15000,retries=2){let last;for(let i=0;i<=retries;i++){try{return await fetchWithTimeout(url,opts,timeout);}catch(e){last=e;if(i<retries)await new Promise(r=>setTimeout(r,500*(i+1)));}}throw last;}
     async function centralPhotoData(url){
       const src=String(url||'').trim();
       if(!src) return null;
@@ -3921,31 +3948,6 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
   window.STTMiniZip=MiniZip;
 })();
 
-// ==================== WORD EXPORT — GLOBAL FETCH SAFETY ====================
-// Word export must never depend on a function scoped to the PDF exporter.
-// Keep one global retry helper available to every exporter/runtime patch.
-window.STT_FETCH_RETRY = window.STT_FETCH_RETRY || (async function(url, opts={}, timeout=15000, retries=2){
-  let lastErr;
-  for(let i=0;i<=retries;i++){
-    const controller = typeof AbortController==='function' ? new AbortController() : null;
-    let timer = null;
-    try{
-      const requestOpts = Object.assign({}, opts || {});
-      if(controller){ requestOpts.signal = controller.signal; timer=setTimeout(()=>{try{controller.abort();}catch(_){ }}, timeout); }
-      const response = await fetch(url, requestOpts);
-      if(response && (response.ok || response.type==='opaque')) return response;
-      throw new Error('HTTP '+(response?.status||0));
-    }catch(err){
-      lastErr=err;
-      if(i<retries) await new Promise(r=>setTimeout(r,600*(i+1)));
-    }finally{ if(timer) clearTimeout(timer); }
-  }
-  throw lastErr || new Error('Gagal mengambil data dari server.');
-});
-// Backward-compatible name: any legacy helper that still calls fetchRetry()
-// gets the same safe implementation instead of ReferenceError.
-window.fetchRetry = window.fetchRetry || window.STT_FETCH_RETRY;
-
 // ==================== WORD EXPORT — CENTRAL FINDING NOTES CONTRACT ====================
 document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
   try{
@@ -3958,14 +3960,18 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
     showOverlay('Membuat Word Security Report (.DOCX)...');setOverlayProgress(5);
     const petugas=(document.getElementById('petugasName')?.value||'Petugas').trim(),tanggal=document.getElementById('tanggal')?.value||new Date().toISOString().slice(0,10),jam=document.getElementById('jam')?.value||new Date().toTimeString().slice(0,5),generated=new Date().toLocaleString('id-ID');
     const safe=v=>String(v??'').replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,'_').slice(0,80),xml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'),escText=v=>String(v??'').replace(/\r/g,'').split('\n');
-    const zip=new (window.JSZip||window.STTMiniZip)(),media=[];let rid=1;
+    if(typeof window.JSZip !== 'function'){
+      hideOverlay();
+      alert('❌ Word Export tidak dapat dijalankan: pustaka JSZip belum siap. Pastikan koneksi/library JSZip tersedia lalu coba lagi.');
+      return;
+    }
+    const zip=new window.JSZip(),media=[];let rid=1;
     async function fetchWithTimeoutWord(url,opts={},timeout=15000){
       const c=new AbortController();
       const t=setTimeout(()=>c.abort(),timeout);
       try{return await fetch(url,Object.assign({},opts,{signal:c.signal}));}
       finally{clearTimeout(t);}
     }
-    const fetchRetryWord = window.STT_FETCH_RETRY;
     async function photoDataWord(p){
       if(p&&typeof p==='object'&&p.ref){
         const b=await idbGet(STORE_BLOBS,p.ref);
@@ -3976,7 +3982,7 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
       if(/^data:image\//i.test(src)) return src;
       if(/^https?:\/\//i.test(src)){
         try{
-          const r=await fetchRetryWord(src,{mode:'cors',cache:'no-store'},15000,2);
+          const r=await fetchRetry(src,{mode:'cors',cache:'no-store'},15000,2);
           if(r.ok){const b=await r.blob();return await blobToBase64(b);}
         }catch(_){ }
         // Google Drive image URLs can be redirected; try a browser image and
@@ -4033,7 +4039,12 @@ document.getElementById('genWordBtn')?.addEventListener('click', async ()=>{
     const sectPr='<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr>';const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}${sectPr}</w:body></w:document>`;
     zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>`+'</Types>');zip.folder('_rels').file('.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
     const wr=zip.folder('word').folder('_rels');let rel=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;media.forEach(m=>rel+=`<Relationship Id="${m.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.path.split('/').pop()}"/>`);rel+='</Relationships>';wr.file('document.xml.rels',rel);zip.folder('word').file('document.xml',documentXml);zip.folder('word').file('styles.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80"/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>`);
-    async function dataToBytes(data){const str=String(data||'').trim();if(!str)throw new Error('Data gambar kosong.');if(/^data:/i.test(str)){const comma=str.indexOf(',');if(comma<0)throw new Error('Data URL gambar tidak valid.');const meta=str.slice(0,comma).toLowerCase(),payload=str.slice(comma+1);if(meta.includes(';base64')){let raw=payload.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');try{raw=decodeURIComponent(raw)}catch(_){}while(raw.length%4)raw+='=';return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}return new Uint8Array(await (await fetch(str)).arrayBuffer());}if(/^https?:/i.test(str))return new Uint8Array(await (await fetchRetryWord(str,{mode:'cors',cache:'force-cache'},15000,2)).arrayBuffer());throw new Error('Sumber gambar Word harus URL Central atau data lokal yang valid.');}
+    async function dataToBytes(data){const str=String(data||'').trim();if(!str)throw new Error('Data gambar kosong.');if(/^data:/i.test(str)){const comma=str.indexOf(',');if(comma<0)throw new Error('Data URL gambar tidak valid.');const meta=str.slice(0,comma).toLowerCase(),payload=str.slice(comma+1);if(meta.includes(';base64')){let raw=payload.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/');try{raw=decodeURIComponent(raw)}catch(_){}while(raw.length%4)raw+='=';return Uint8Array.from(atob(raw),c=>c.charCodeAt(0));}return new Uint8Array(await (await fetch(str)).arrayBuffer());}if(/^https?:/i.test(str))return new Uint8Array(await (await fetchRetry(str,{mode:'cors',cache:'force-cache'},15000,2)).arrayBuffer());throw new Error('Sumber gambar Word harus URL Central atau data lokal yang valid.');}
+    if(typeof window.JSZip !== 'function'){
+      hideOverlay();
+      alert('❌ Word Export dibatalkan: pustaka JSZip belum siap.');
+      return;
+    }
     for(const m of media){const bytes=await dataToBytes(m.raw);zip.folder('word').folder('media').file(m.path.split('/').pop(),bytes);}setOverlayProgress(95);const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'});const filenameDate=/^\d{4}-\d{2}-\d{2}$/.test(tanggal)?tanggal.split('-').reverse().join('-'):safe(tanggal);const rawShift=String(document.getElementById('shift')?.value||'').trim();const filenameShift=safe(rawShift.toUpperCase()).replace(/_+/g,'_')||'SHIFT';const filename=`${safe(petugas||'Petugas')}_${filenameDate}_${filenameShift}.docx`;const saved=await saveBlobToPreferredFolder(blob,filename);if(!saved){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}setOverlayProgress(100);hideOverlay();alert(`✅ WORD SECURITY REPORT DOCX SELESAI📥 ${filename}Editable: teks dan gambar dapat diedit/diganti di Microsoft Word.`);
   }catch(e){hideOverlay();console.error('[WORD DOCX]',e);alert('❌ Gagal membuat Word DOCX: '+(e?.message||e));}
 });
