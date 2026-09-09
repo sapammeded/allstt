@@ -54,6 +54,8 @@ th{background:var(--panel2);color:var(--muted);font-weight:600}
 button.copy{background:var(--accent);color:#fff;border:none;border-radius:8px;
   padding:9px 16px;font-size:13px;cursor:pointer}
 button.copy:hover{opacity:.9}
+select#aiTarget{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:9px 12px;font-size:13px;cursor:pointer}
 .diff{font-size:11px;padding:2px 8px;border-radius:6px;background:rgba(143,107,255,.15);color:var(--accent2);margin-left:6px}
 .copy-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:flex;
   align-items:center;justify-content:center;padding:24px}
@@ -64,15 +66,44 @@ button.copy:hover{opacity:.9}
   border:1px solid var(--border);border-radius:8px;padding:10px;font-family:Consolas,monospace;font-size:12px}
 .copy-box button{margin-top:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;
   padding:8px 14px;font-size:13px;cursor:pointer}
+.copy-box.full textarea{height:min(55vh,480px);white-space:pre-wrap;word-break:break-word}
+.copy-box.full{max-width:760px}
+.copy-box .modal-actions{display:flex;gap:8px;flex-wrap:wrap}
+.copy-box .modal-status{font-size:12px;color:var(--muted);margin-top:8px}
+.copy-box .modal-status.ok{color:var(--high)}
+.copy-box .modal-status.err{color:var(--low)}
+.copy-box .err-banner{border-left:3px solid var(--low);background:rgba(242,109,109,.1);
+  padding:8px 12px;border-radius:6px;font-size:12.5px;margin-bottom:10px}
 @media(max-width:640px){nav.toc ol{columns:1}}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<div class="toolbar">
-  <button class="copy" id="copyBtn" onclick="copyPrompt()">📋 Copy Seluruh Prompt</button>
+<div class="toolbar" style="flex-wrap:wrap;align-items:center">
+  <select id="aiTarget" title="Pilih AI yang akan mengerjakan MASTER PROMPT ini" onchange="onAiTargetChange()">
+    <option value="" data-label="">⚪ Hanya Copy Prompt</option>
+    <option value="https://claude.ai/new" data-label="Claude">🟢 Claude — Excel + PDF</option>
+    <option value="https://gemini.google.com/app" data-label="Gemini">🟢 Gemini — Excel + PDF</option>
+    <option value="https://chatgpt.com/" data-label="ChatGPT">🟢 ChatGPT — File/Spreadsheet</option>
+    <option value="https://copilot.microsoft.com/" data-label="Copilot">🟢 Microsoft Copilot — Excel + PDF</option>
+  </select>
+  <button class="copy" id="runBtn" onclick="copyPrompt(true)">📋 Copy Prompt</button>
+  <button class="copy" id="copyOnlyBtn" onclick="copyPrompt(false)"
+    style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:8px 14px;font-size:12px">
+    📋 Copy Prompt Saja
+  </button>
 </div>
+<p id="promptStats" style="text-align:right;font-size:11px;color:var(--muted);margin:-6px 0 4px">
+  <span id="promptStatsText">FULL PROMPT: — karakter · —/35 Sections</span>
+  &nbsp;·&nbsp;<a href="#" onclick="openFullPromptView();return false;" style="color:var(--accent)">Lihat/Salin FULL PROMPT manual</a>
+</p>
+<p id="aiCapNote" style="display:none;text-align:right;font-size:11.5px;color:var(--muted);margin:-4px 0 6px">
+  AI dipilih untuk menjalankan MASTER PROMPT dan menghasilkan file XLSX/PDF. Ketersediaan pembuatan file mengikuti akun dan fitur AI yang digunakan.
+</p>
+<p id="pasteHint" style="display:none;text-align:right;font-size:11.5px;color:var(--muted);margin:-4px 0 12px">
+  Tab AI terbuka — tempel dengan <strong>Ctrl+V</strong> (atau Cmd+V) di kolom chat, lalu lampirkan foto formulir.
+</p>
 
 <header class="hero">
   <h1>MASTER PROMPT — SCAN INSPEKSI</h1>
@@ -439,6 +470,10 @@ button.copy:hover{opacity:.9}
 </div>
 
 <script>
+// ==================================================
+// SOURCE OF TRUTH — tidak diubah dari logika V5.2.
+// Satu-satunya fungsi yang membangun teks prompt.
+// ==================================================
 function buildPromptText(){
   const sections = Array.from(document.querySelectorAll('section[id^="s"]'))
     .filter(sec => sec.id !== 's0');
@@ -459,36 +494,195 @@ function buildPromptText(){
     parts.join('\n\n');
 }
 
-function setBtnLabel(text, revertMs){
-  const btn = document.getElementById('copyBtn');
-  const old = btn.textContent;
-  btn.textContent = text;
-  if(revertMs) setTimeout(()=>{ btn.textContent = old; }, revertMs);
+const TOTAL_SECTIONS = 35;
+
+// ==================================================
+// INTEGRITY VALIDATION — pemeriksaan aktual, bukan hardcoded.
+// ==================================================
+function validatePromptIntegrity(text){
+  const result = { valid: false, length: 0, sectionsFound: 0, missingSections: [] };
+
+  if (typeof text !== 'string' || text.length === 0) {
+    return result;
+  }
+  result.length = text.length;
+
+  const headerOk = text.indexOf('MASTER PROMPT — SCAN INSPEKSI (V5.2)') === 0;
+
+  const missing = [];
+  for (let n = 1; n <= TOTAL_SECTIONS; n++) {
+    const re = new RegExp('(^|\\n)' + n + '\\. ', 'm');
+    if (!re.test(text)) missing.push(n);
+  }
+  result.sectionsFound = TOTAL_SECTIONS - missing.length;
+  result.missingSections = missing;
+
+  // Section 35 (bagian terakhir) harus benar-benar ada di ekor teks — indikasi
+  // teks tidak terpotong di akhir.
+  const tailHasSection35 = /(^|\n)35\. /m.test(text);
+
+  result.valid = headerOk && missing.length === 0 && tailHasSection35 && text.length > 0;
+  return result;
 }
 
-function showManualCopyBox(text){
+function updatePromptStats(check){
+  const el = document.getElementById('promptStatsText');
+  if (!el) return;
+  el.textContent = `FULL PROMPT: ${check.length.toLocaleString('id-ID')} karakter · ${check.sectionsFound}/${TOTAL_SECTIONS} Sections`;
+  el.style.color = check.valid ? 'var(--muted)' : 'var(--low)';
+}
+
+// ==================================================
+// STATUS TOMBOL — hanya menampilkan status yang benar-benar terjadi.
+// ==================================================
+function setBtnLabel(btnId, text, revertMs){
+  const btn = document.getElementById(btnId);
+  if (!btn.dataset.idleLabel) btn.dataset.idleLabel = btn.textContent;
+  btn.textContent = text;
+  clearTimeout(btn._revertTimer);
+  if (revertMs) {
+    btn._revertTimer = setTimeout(() => { btn.textContent = btn.dataset.idleLabel; }, revertMs);
+  }
+}
+
+function onAiTargetChange(){
+  const sel = document.getElementById('aiTarget');
+  const opt = sel.options[sel.selectedIndex];
+  const label = opt.getAttribute('data-label');
+  const runBtn = document.getElementById('runBtn');
+  const note = document.getElementById('aiCapNote');
+  const hint = document.getElementById('pasteHint');
+  const idle = label ? ('🚀 KERJAKAN DENGAN ' + label.toUpperCase()) : '📋 Copy Prompt';
+  runBtn.textContent = idle;
+  runBtn.dataset.idleLabel = idle;
+  note.style.display = label ? 'block' : 'none';
+  hint.style.display = 'none';
+}
+
+// ==================================================
+// FULL PROMPT FALLBACK — modal berisi 100% finalText, tanpa pemotongan.
+// Dipakai baik untuk kegagalan copy maupun kegagalan validasi.
+// ==================================================
+function buildCopyBox(className){
   const overlay = document.createElement('div');
   overlay.className = 'copy-overlay';
-  overlay.innerHTML = `
-    <div class="copy-box">
-      <p>Copy otomatis diblokir browser/preview ini. Tekan Ctrl+C (atau Cmd+C) — teks sudah terseleksi:</p>
-      <textarea readonly></textarea>
-      <button id="closeCopyBox">Tutup</button>
-    </div>`;
+  const box = document.createElement('div');
+  box.className = 'copy-box' + (className ? ' ' + className : '');
+  overlay.appendChild(box);
   document.body.appendChild(overlay);
-  const ta = overlay.querySelector('textarea');
-  ta.value = text;
-  ta.focus();
-  ta.select();
-  overlay.querySelector('#closeCopyBox').onclick = () => overlay.remove();
+  return { overlay, box };
 }
 
-function copyPrompt(){
-  const finalText = buildPromptText();
+function showFullPromptFallback(finalText, reasonText){
+  const { overlay, box } = buildCopyBox('full');
+  const check = validatePromptIntegrity(finalText);
 
-  // Lapis 1: document.execCommand (paling kompatibel, termasuk di iframe/preview)
+  box.innerHTML = `
+    <p style="font-weight:600;color:var(--text);font-size:14px;margin:0 0 4px">FULL MASTER PROMPT</p>
+    <p style="margin:0 0 10px">${reasonText}</p>
+    <p style="margin:0 0 8px;font-size:11.5px">FULL PROMPT: ${check.length.toLocaleString('id-ID')} karakter · ${check.sectionsFound}/${TOTAL_SECTIONS} Sections</p>
+    <textarea readonly></textarea>
+    <div class="modal-actions">
+      <button id="fpSelectAll">SELECT ALL</button>
+      <button id="fpCopy">COPY FULL PROMPT</button>
+      <button id="fpClose" style="background:transparent;border:1px solid var(--border);color:var(--muted)">Tutup</button>
+    </div>
+    <p class="modal-status" id="fpStatus"></p>
+    <p style="margin:8px 0 0;font-size:11px">Tekan lama pada teks → Pilih Semua → Salin (Android), atau Ctrl+A → Ctrl+C (Desktop).</p>
+  `;
+
+  const ta = box.querySelector('textarea');
+  ta.value = finalText; // plain text assignment — tidak ada innerHTML, tidak ada pemotongan
+  const status = box.querySelector('#fpStatus');
+
+  box.querySelector('#fpSelectAll').onclick = () => { ta.focus(); ta.select(); };
+  box.querySelector('#fpClose').onclick = () => overlay.remove();
+
+  box.querySelector('#fpCopy').onclick = () => {
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (ok && ta.value.length === finalText.length) {
+      status.textContent = `✅ FULL PROMPT tersalin (${finalText.length.toLocaleString('id-ID')} karakter)`;
+      status.className = 'modal-status ok';
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(finalText).then(() => {
+        status.textContent = `✅ FULL PROMPT tersalin (${finalText.length.toLocaleString('id-ID')} karakter)`;
+        status.className = 'modal-status ok';
+      }).catch(() => {
+        status.textContent = '⚠️ Copy otomatis gagal — gunakan Select All lalu salin manual.';
+        status.className = 'modal-status err';
+      });
+    } else {
+      status.textContent = '⚠️ Copy otomatis gagal — gunakan Select All lalu salin manual.';
+      status.className = 'modal-status err';
+    }
+  };
+
+  ta.focus();
+  ta.select();
+}
+
+function showIntegrityError(check){
+  const { overlay, box } = buildCopyBox('full');
+  box.innerHTML = `
+    <div class="err-banner">
+      <strong>⚠️ VALIDASI FULL PROMPT GAGAL</strong><br>
+      Section belum lengkap (${check.sectionsFound}/${TOTAL_SECTIONS}). Section hilang: ${check.missingSections.join(', ') || '-'}.
+      Copy dan pembukaan AI dibatalkan agar tidak mengirim prompt yang tidak lengkap.
+    </div>
+    <button id="fpClose">Tutup</button>
+  `;
+  box.querySelector('#fpClose').onclick = () => overlay.remove();
+}
+
+function openFullPromptView(){
+  const finalText = buildPromptText();
+  showFullPromptFallback(finalText, 'Salin manual FULL PROMPT — sudah lengkap Section 1–35, tanpa pemotongan.');
+}
+
+// ==================================================
+// DELIVERY — validasi dulu, baru copy; tidak pernah klaim sukses tanpa bukti.
+// useSelectedAi = true  → tombol "🚀 KERJAKAN DENGAN ..." (buka tab AI terpilih + copy)
+// useSelectedAi = false → tombol "📋 Copy Prompt Saja" (copy manual, tidak membuka tab apa pun)
+// ==================================================
+function copyPrompt(useSelectedAi){
+  const btnId = useSelectedAi ? 'runBtn' : 'copyOnlyBtn';
+  setBtnLabel(btnId, '⏳ Menyiapkan FULL PROMPT...', 0);
+
+  // STEP 1: build FULL PROMPT dari source of truth
+  const finalText = buildPromptText();
+  const expectedLength = finalText.length;
+
+  // STEP 2-3: validasi Section 1–35 sebelum melakukan apa pun
+  const check = validatePromptIntegrity(finalText);
+  updatePromptStats(check);
+
+  if (!check.valid) {
+    setBtnLabel(btnId, '⚠️ Validasi FULL PROMPT gagal', 3500);
+    showIntegrityError(check);
+    return; // JANGAN COPY. JANGAN BUKA AI. JANGAN status sukses.
+  }
+
+  const sel = document.getElementById('aiTarget');
+  const targetUrl = useSelectedAi ? sel.value : '';
+  const hint = document.getElementById('pasteHint');
+
+  // STEP 4: buka AI tujuan — harus sinkron dalam handler klik, sebelum proses
+  // async apa pun, agar tidak diblokir sebagai popup oleh browser (termasuk Android).
+  if (targetUrl) {
+    window.open(targetUrl, '_blank', 'noopener');
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+
+  // STEP 5: coba copy FULL PROMPT — Lapis 1: execCommand via textarea sumber
   const ta = document.createElement('textarea');
-  ta.value = finalText;
+  ta.value = finalText; // plain text, tidak ada innerHTML/pemotongan/maxlength
   ta.style.position = 'fixed';
   ta.style.left = '-9999px';
   document.body.appendChild(ta);
@@ -496,26 +690,33 @@ function copyPrompt(){
   ta.select();
   let execSuccess = false;
   try { execSuccess = document.execCommand('copy'); } catch (e) { execSuccess = false; }
+  const sourceLengthOk = (ta.value.length === expectedLength); // deteksi truncation pada sumber copy
   document.body.removeChild(ta);
 
-  if (execSuccess) {
-    setBtnLabel('✅ Tersalin (bersih, tanpa elemen UI)!', 1800);
+  if (execSuccess && sourceLengthOk) {
+    // STEP 6: copy berhasil & panjang sesuai — status sukses jujur
+    setBtnLabel(btnId, `✅ FULL PROMPT tersalin (${expectedLength.toLocaleString('id-ID')} karakter)`, 3000);
     return;
   }
 
-  // Lapis 2: Clipboard API
+  // Lapis 2: Clipboard API (tidak dianggap pasti berhasil di Android/WebView)
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(finalText).then(() => {
-      setBtnLabel('✅ Tersalin (bersih, tanpa elemen UI)!', 1800);
+      setBtnLabel(btnId, `✅ FULL PROMPT tersalin (${expectedLength.toLocaleString('id-ID')} karakter)`, 3000);
     }).catch(() => {
-      // Lapis 3: kotak manual
-      showManualCopyBox(finalText);
+      // STEP 7: copy gagal/diragukan — jangan klaim sukses, tampilkan FULL PROMPT fallback
+      setBtnLabel(btnId, '⚠️ Copy otomatis gagal — FULL PROMPT siap disalin manual', 3500);
+      showFullPromptFallback(finalText, '⚠️ Copy otomatis gagal — FULL PROMPT siap disalin manual di bawah ini.');
     });
   } else {
-    // Lapis 3: kotak manual
-    showManualCopyBox(finalText);
+    setBtnLabel(btnId, '⚠️ Copy otomatis gagal — FULL PROMPT siap disalin manual', 3500);
+    showFullPromptFallback(finalText, '⚠️ Copy otomatis tidak tersedia — FULL PROMPT siap disalin manual di bawah ini.');
   }
 }
+
+// Init: label tombol sesuai selector default + tampilkan statistik FULL PROMPT aktual
+onAiTargetChange();
+updatePromptStats(validatePromptIntegrity(buildPromptText()));
 </script>
 </body>
 </html>
