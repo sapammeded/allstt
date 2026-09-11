@@ -32,15 +32,23 @@ function sheet_(){
 function clean_(v){ return String(v == null ? '' : v).trim(); }
 function now_(){ return new Date(); }
 function rowToObject_(row){ const o={}; HEADERS.forEach((h,i)=>o[h]=row[i]); return o; }
+
+// Fast lookup: search only the Installation ID column instead of loading the
+// entire DEVICES sheet into memory on every APK check.
 function findRow_(sh, installationId, app){
   const last=sh.getLastRow(); if(last<2)return null;
-  const values=sh.getRange(2,1,last-1,HEADERS.length).getValues();
   const id=clean_(installationId), a=clean_(app).toUpperCase();
-  for(let i=0;i<values.length;i++){
-    if(clean_(values[i][0])===id && clean_(values[i][2]).toUpperCase()===a)
-      return {rowNumber:i+2,values:values[i]};
-  }
-  return null;
+  if(!id || !a)return null;
+  const hit=sh.getRange(2,1,last-1,1)
+    .createTextFinder(id)
+    .matchEntireCell(true)
+    .matchCase(true)
+    .findNext();
+  if(!hit)return null;
+  const rowNumber=hit.getRow();
+  const values=sh.getRange(rowNumber,1,1,HEADERS.length).getValues()[0];
+  if(clean_(values[2]).toUpperCase()!==a)return null;
+  return {rowNumber:rowNumber,values:values};
 }
 function ensurePending_(sh,data){
   const existing=findRow_(sh,data.installation_id,data.app); if(existing)return existing;
