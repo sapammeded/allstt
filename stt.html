@@ -1887,8 +1887,8 @@ function setLogoUploadPassword(value){
 
 // ==================== PDF AUTO-UPLOAD CONFIG ====================
 // Isi dengan URL Google Apps Script Web App (/exec). PDF otomatis download + upload.
-const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycby-VF6ZS_5TbC_6LoADa88cv4hBx-cRWUpYLZtyPU66M0cX9myBGR4He5bmjvMSVD_T/exec";
-const STT_FINDING_CENTRAL_URL = 'https://script.google.com/macros/s/AKfycbyAJ9CFiTESUWLiCF_x0APclk4U-Zd85jI6LfWjE22hN8nyS_9yDEf0-rYrObuwyf59lA/exec';
+const PDF_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzCviYEAiSgox3M3XtP3KZe0EGZamMEUjY2oFZtw4KrYViX7NM-3kZ55jgyU_JjtKdQ/exec";
+const STT_FINDING_CENTRAL_URL = 'https://script.google.com/macros/s/AKfycbxNXQxOu3sfByzdYjgTF53dly_24F1XsI6rnkAuLxxyg5n946FYO4CKCvLtonXB2ror/exec';
 // Tujuan PDF: folder Google Drive berikut. Nama folder tidak diperlukan.
 const GOOGLE_DRIVE_FOLDER_ID = "10uSLOFq1-ZlFGNK1Fk-5bM2FTyTKhj6W";
 const SYNC_RETRY_INTERVAL = 60 * 1000;
@@ -3262,8 +3262,9 @@ function setupSuperCleanup() {
       const a = patrolData[k];
       const div = document.createElement('div'); div.className='area'; div.dataset.idx = k;
       
+      const areaCameraButton = `<button type="button" class="btn btn-primary btn-area-camera" data-idx="${k}" style="flex:1;min-height:64px;font-weight:800">📷 KAMERA AREA INI</button>`;
       const galleryButton = (galleryAccessGranted || window.allsttGalleryUnlocked) ? 
-        `<button class="btn btn-ghost btn-add" data-idx="${k}">➕ Tambah Foto (Gallery - Multi)</button><input type="file" accept="image/*" multiple style="display:none" class="file-input" data-idx="${k}"/>` : 
+        `<button class="btn btn-ghost btn-add" data-idx="${k}">➕ Galeri</button><input type="file" accept="image/*" multiple style="display:none" class="file-input" data-idx="${k}"/>` : 
         `<button class="btn btn-ghost" disabled>🔒 Galeri Terkunci</button>`;
       
       div.innerHTML = `
@@ -3271,7 +3272,8 @@ function setupSuperCleanup() {
         ${findingAlertHtml(a.name||('Area '+(parseInt(k)+1)),k)}
         <div style="margin-bottom:6px"><label class="small">Catatan Area</label><textarea data-field="notes" placeholder="Tambahkan catatan untuk area ini...">${a.notes||''}</textarea></div>
         <div style="margin-bottom:6px"><label class="small">Deskripsi Global</label><textarea data-field="global" placeholder="Deskripsi umum area patroli...">${a.globalDescription||''}</textarea></div>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:8px;flex-wrap:wrap">
+          ${areaCameraButton}
           ${galleryButton}
           <button class="btn btn-ghost btn-remove" data-idx="${k}">🗑️ Hapus Area</button>
         </div>
@@ -3279,6 +3281,26 @@ function setupSuperCleanup() {
         <div class="small" style="margin-top:8px;color:#6b7280">${(a.photos||[]).length} foto di area ini</div>
       `;
       container.appendChild(div);
+
+      const areaCameraBtn = div.querySelector('.btn-area-camera');
+      if (areaCameraBtn) {
+        areaCameraBtn.addEventListener('click', () => {
+          const idx = String(areaCameraBtn.dataset.idx);
+          currentTargetArea = idx;
+
+          const selector = document.getElementById('targetAreaSelect');
+          if (selector) selector.value = idx;
+
+          const nativeInput = document.getElementById('nativeCameraInput');
+          if (!nativeInput) {
+            alert('⚠️ Kamera HP tidak tersedia.');
+            return;
+          }
+
+          // Direct click from the user's button action so Android WebView can open the camera.
+          nativeInput.click();
+        });
+      }
 
       const nameInput = div.querySelector('[data-field="name"]');
       nameInput.addEventListener('input', (e)=>{ a.name = e.target.value; persistMeta(); try{window.dispatchEvent(new Event('stt-patrol-data-changed'));}catch(_e){} });
@@ -3829,20 +3851,36 @@ document.getElementById('genPdfBtn')?.addEventListener('click', async ()=>{
     async function centralPhotoData(url){
       const src=String(url||'').trim();
       if(!src) return null;
-      if(/^data:image\//i.test(src)) throw new Error('Central photo_url tidak boleh berisi data URL.');
+      if(/^data:image\//i.test(src)) return src;
       if(centralPhotoCache.has(src)) return centralPhotoCache.get(src);
       const promise=(async()=>{
-        try{
-          const r=await fetchRetry(src,{mode:'cors',cache:'force-cache'},15000,2);
-          if(!r.ok) throw new Error('HTTP '+r.status);
-          const blob=await r.blob();
-          return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
-        }catch(fetchErr){
-          const img=new Image(); img.crossOrigin='anonymous';
-          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=src;});
-          const c=document.createElement('canvas'); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
-          const ctx=c.getContext('2d'); ctx.drawImage(img,0,0); return c.toDataURL('image/jpeg',0.88);
+        const candidates=[];
+        const m=src.match(/[?&]id=([A-Za-z0-9_-]{10,})/i)||src.match(/\/d\/([A-Za-z0-9_-]{10,})/i);
+        if(m&&m[1]){
+          const id=encodeURIComponent(m[1]);
+          candidates.push('https://drive.google.com/thumbnail?id='+id+'&sz=w1600');
+          candidates.push('https://drive.google.com/uc?export=view&id='+id);
+          candidates.push('https://lh3.googleusercontent.com/d/'+id+'=w1600');
+          candidates.push('https://drive.google.com/uc?export=download&id='+id);
+        }else candidates.push(src);
+        let lastErr=null;
+        for(const candidate of candidates){
+          try{
+            const r=await fetchRetry(candidate,{mode:'cors',cache:'no-store'},15000,2);
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            const blob=await r.blob();
+            if(!blob||!blob.size) throw new Error('Gambar kosong');
+            return await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob);});
+          }catch(e){lastErr=e;}
         }
+        try{
+          const img=new Image();img.crossOrigin='anonymous';
+          await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=candidates[0]||src;});
+          const c=document.createElement('canvas');c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;
+          if(!c.width||!c.height) throw new Error('Dimensi gambar kosong');
+          c.getContext('2d').drawImage(img,0,0);return c.toDataURL('image/jpeg',0.9);
+        }catch(e){lastErr=e;}
+        throw lastErr||new Error('Foto Finding tidak dapat dimuat');
       })();
       centralPhotoCache.set(src,promise);
       try{return await promise;}catch(e){centralPhotoCache.delete(src);throw e;}
