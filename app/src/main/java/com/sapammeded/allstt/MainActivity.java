@@ -52,7 +52,12 @@ public class MainActivity extends Activity {
         webView = new WebView(this);
         setContentView(webView);
         configureWebView();
-        webView.loadUrl("file:///android_asset/launcher.html");
+
+        // MainActivityGenius must install AndroidCentral before the first
+        // launcher document executes. Do not start a premature document load.
+        if (!(this instanceof MainActivityGenius)) {
+            webView.loadUrl("file:///android_asset/launcher.html");
+        }
     }
 
     private void configureWebView() {
@@ -258,105 +263,89 @@ public class MainActivity extends Activity {
                 if (code < 200 || code >= 400) throw new Exception("HTTP " + code);
                 String ct = conn.getContentType();
                 String resolvedMime = requestedMime;
-                if (resolvedMime == null || resolvedMime.isEmpty()) resolvedMime = ct;
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                try (InputStream in = conn.getInputStream()) {
-                    byte[] buf = new byte[8192]; int n;
-                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                if (resolvedMime == null || resolvedMime.isEmpty() || "application/octet-stream".equalsIgnoreCase(resolvedMime)) {
+                    if (ct != null && !ct.isEmpty()) resolvedMime = ct.split(";")[0].trim();
                 }
-                final byte[] bytes = out.toByteArray();
-                final String finalMime = resolvedMime == null ? "application/octet-stream" : resolvedMime;
-                runOnUiThread(() -> openSavePicker(bytes, filename, finalMime));
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                InputStream in = conn.getInputStream();
+                try (InputStream input = in) {
+                    byte[] buf = new byte[8192]; int n;
+                    while ((n = input.read(buf)) != -1) out.write(buf, 0, n);
+                }
+                byte[] bytes = out.toByteArray();
+                runOnUiThread(() -> openSavePicker(bytes, filename, resolvedMime));
             } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Download gagal: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                final String msg = e.getMessage() == null ? "Gagal mengunduh file" : e.getMessage();
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Download gagal: " + msg, Toast.LENGTH_LONG).show());
             } finally { if (conn != null) conn.disconnect(); }
         }).start();
     }
 
-    private void openSavePicker(byte[] bytes, String filename, String mimeType) {
-        pendingSaveBytes = bytes;
-        pendingSaveName = filename == null || filename.isEmpty() ? "ALLSTT_Download" : filename.replaceAll("[\\\\/:*?\"<>|]", "_");
-        pendingSaveMime = mimeType == null || mimeType.isEmpty() ? "application/octet-stream" : mimeType;
-        try {
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType(pendingSaveMime);
-            intent.putExtra(Intent.EXTRA_TITLE, pendingSaveName);
-            startActivityForResult(intent, SAVE_FILE);
-        } catch (ActivityNotFoundException e) {
-            pendingSaveBytes = null;
-            Toast.makeText(this, "File picker tidak tersedia", Toast.LENGTH_LONG).show();
+    private void openSavePicker(byte[] bytes, String filename, String mime) {
+        pendingSaveBytes = bytes; pendingSaveName = filename; pendingSaveMime = mime == null ? "application/octet-stream" : mime;
+        if (Build.VERSION.SDK_INT >= 19) {
+            Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE); i.setType(pendingSaveMime); i.putExtra(Intent.EXTRA_TITLE, pendingSaveName);
+            try { startActivityForResult(i, SAVE_FILE); return; } catch (ActivityNotFoundException ignored) {}
         }
+        saveToDownloadsLegacy(pendingSaveBytes, pendingSaveName, pendingSaveMime);
+        pendingSaveBytes = null; pendingSaveName = null; pendingSaveMime = null;
     }
 
-    private void saveSelectedFile(Uri uri) {
-        if (uri == null || pendingSaveBytes == null) return;
-        try (OutputStream out = getContentResolver().openOutputStream(uri)) {
-            if (out == null) throw new Exception("Tidak dapat membuka lokasi tujuan");
-            out.write(pendingSaveBytes);
-            Toast.makeText(this, "File berhasil disimpan", Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Gagal menyimpan: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        } finally {
-            pendingSaveBytes = null; pendingSaveName = null; pendingSaveMime = null;
-        }
-    }
-
-    private void saveBase64File(String filename, String mimeType, String base64) {
+    private void saveToDownloadsLegacy(byte[] bytes, String name, String mime) {
         try {
-            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
-            runOnUiThread(() -> openSavePicker(bytes, filename, mimeType));
-        } catch (Exception e) { downloadError(e.getMessage()); }
-    }
-
-    private void saveBlobUrl(String url, String filename) {
-        if (url == null || url.isEmpty()) return;
-        String u = org.json.JSONObject.quote(url);
-        String n = org.json.JSONObject.quote(filename == null || filename.isEmpty() ? "ALLSTT_Download" : filename);
-        webView.evaluateJavascript("(async()=>{try{const r=await fetch("+u+");const b=await r.blob();const fr=new FileReader();fr.onload=()=>Android.saveBase64File("+n+",b.type||'application/octet-stream',fr.result.split(',')[1]);fr.readAsDataURL(b);}catch(e){Android.downloadError(String(e));}})();", null);
-    }
-
-    private Uri createCameraUri() {
-        String name = "ALLSTT_" + System.currentTimeMillis() + ".jpg";
-        ContentValues v = new ContentValues();
-        v.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-        v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-        if (Build.VERSION.SDK_INT >= 29) v.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ALLSTT");
-        return getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+            ContentValues v = new ContentValues(); v.put(MediaStore.MediaColumns.DISPLAY_NAME, name); v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+            if (Build.VERSION.SDK_INT >= 29) v.put(MediaStore.MediaColumns.RELATIVE_PATH, "Download");
+            Uri u = getContentResolver().insert(MediaStore.Files.getContentUri("external"), v);
+            if (u != null) { try (OutputStream os = getContentResolver().openOutputStream(u)) { os.write(bytes); } Toast.makeText(this, "File tersimpan: " + name, Toast.LENGTH_LONG).show(); }
+        } catch (Exception e) { Toast.makeText(this, "Gagal menyimpan: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == SAVE_FILE) {
-            if (resultCode == RESULT_OK && data != null) saveSelectedFile(data.getData());
-            else { pendingSaveBytes = null; pendingSaveName = null; pendingSaveMime = null; }
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && pendingSaveBytes != null) {
+                try (OutputStream os = getContentResolver().openOutputStream(data.getData())) { os.write(pendingSaveBytes); Toast.makeText(this, "File tersimpan: " + pendingSaveName, Toast.LENGTH_LONG).show(); }
+                catch (Exception e) { Toast.makeText(this, "Gagal menyimpan: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+            }
+            pendingSaveBytes = null; pendingSaveName = null; pendingSaveMime = null;
             return;
         }
         if (requestCode != FILE_CHOOSER || fileCallback == null) return;
         Uri[] results = null;
         if (resultCode == RESULT_OK) {
             if (data != null && data.getClipData() != null) {
-                int count = data.getClipData().getItemCount(); results = new Uri[count];
-                for (int i = 0; i < count; i++) results[i] = data.getClipData().getItemAt(i).getUri();
+                int n = data.getClipData().getItemCount(); results = new Uri[n];
+                for (int i = 0; i < n; i++) results[i] = data.getClipData().getItemAt(i).getUri();
             } else if (data != null && data.getData() != null) results = new Uri[]{data.getData()};
             else if (pendingCameraUri != null) results = new Uri[]{pendingCameraUri};
-        } else if (pendingCameraUri != null) {
-            try { getContentResolver().delete(pendingCameraUri, null, null); } catch (Exception ignored) {}
         }
+        if (results == null && resultCode == RESULT_OK && pendingCameraUri != null) results = new Uri[]{pendingCameraUri};
         fileCallback.onReceiveValue(results); fileCallback = null; pendingCameraUri = null;
     }
 
-    public class AndroidBridge {
-        @JavascriptInterface public void saveBase64File(String filename, String mimeType, String base64) { MainActivity.this.saveBase64File(filename, mimeType, base64); }
-        @JavascriptInterface public void saveBlobUrl(String url, String filename) { MainActivity.this.saveBlobUrl(url, filename); }
-        @JavascriptInterface public void downloadError(String message) { MainActivity.this.downloadError(message); }
+    private Uri createCameraUri() {
+        try {
+            ContentValues v = new ContentValues(); v.put(MediaStore.Images.Media.DISPLAY_NAME, "ALLSTT_" + System.currentTimeMillis() + ".jpg"); v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            if (Build.VERSION.SDK_INT >= 29) v.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ALLSTT");
+            return getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+        } catch (Exception e) { return null; }
     }
 
-    private void downloadError(String message) {
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Download gagal: " + message, Toast.LENGTH_LONG).show());
+    private void saveBase64File(String name, String mime, String base64) {
+        try {
+            byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+            openSavePicker(bytes, name, mime);
+        } catch (Exception e) { Toast.makeText(this, "Gagal memproses file: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+    }
+
+    public class AndroidBridge {
+        @JavascriptInterface public void saveBase64File(String name, String mime, String base64) { runOnUiThread(() -> MainActivity.this.saveBase64File(name, mime, base64)); }
+        @JavascriptInterface public void saveBlobUrl(String url, String name) { runOnUiThread(() -> webView.evaluateJavascript("(async()=>{try{const r=await fetch("+org.json.JSONObject.quote(url)+");const b=await r.blob();const fr=new FileReader();fr.onload=()=>Android.saveBase64File("+org.json.JSONObject.quote(name)+", "+org.json.JSONObject.quote(b.type||'application/octet-stream')+", fr.result.split(',')[1]);fr.readAsDataURL(b);}catch(e){Android.downloadError(String(e));}})();", null)); }
+        @JavascriptInterface public void downloadError(String message) { runOnUiThread(() -> Toast.makeText(MainActivity.this, message == null ? "Download gagal" : message, Toast.LENGTH_LONG).show()); }
     }
 
     @Override public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack(); else super.onBackPressed();
+        if (webView != null && webView.canGoBack()) webView.goBack(); else super.onBackPressed();
     }
 }
