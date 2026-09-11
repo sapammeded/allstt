@@ -9,8 +9,9 @@
     <button id="introUnmuteBtn" type="button" style="display:none;position:absolute;bottom:12px;right:12px;border:none;border-radius:999px;background:rgba(0,0,0,.65);color:#fff;font-weight:900;font-size:13px;padding:9px 14px;cursor:pointer">🔊 AKTIFKAN SUARA</button>
   </div>
   <button id="introContinueBtn" type="button" disabled style="padding:14px 34px;border:none;border-radius:999px;background:#2563eb;color:#fff;font-weight:900;font-size:16px;letter-spacing:.3px;cursor:not-allowed;opacity:.4;transition:opacity .2s">LANJUTKAN ➜</button>
-  <div id="introHint" style="color:#b8c2d0;font-size:11px;font-weight:700">Aktifkan suara dulu untuk bisa melanjutkan</div>
+  <div id="introHint" style="color:#ff1a1a;font-size:20px;font-weight:900;text-shadow:0 0 8px rgba(255,26,26,.85),0 0 18px rgba(255,26,26,.6);animation:introPulse 1s ease-in-out infinite">Klik Aktifkan Suara dulu untuk bisa melanjutkan</div>
 </div>
+<style>@keyframes introPulse{0%,100%{opacity:1}50%{opacity:.55}}</style>
 <header><span id="status" class="status">● CONNECTING...</span><h1>VACS V8.1</h1><div class="sub">Vehicle Access Control System • Central Multi-Device</div><div class="credit">CREATED BY: Mbah Pri</div><div class="clear"></div></header>
 <main>
 <nav class="nav">
@@ -121,7 +122,7 @@ function exportReport(){if(!lastReport)return toast('Generate report dulu.');try
 function printReport(){const t=$('reportTable').querySelector('table');if(!t)return toast('Generate report dulu.');try{const C=window.jspdf?.jsPDF;if(!C)throw Error('PDF library belum siap.');const doc=new C({orientation:'landscape',unit:'mm',format:'a4'});doc.setFontSize(14);doc.text('VACS — ACCESS REPORT',14,12);doc.setFontSize(8);doc.text(hariTanggal(lastReport.reportLogDate||lastReport.reportDate)+' • TYPE: '+(lastReport.filterType||'ALL'),14,18);const rows=(lastReport.rows||[]).map(x=>[x.name,x.plate,x.division,x.type,x.model,x.color,x.inTime,hariTanggal(x.inDate||x.date),x.outTime,x.outDate?hariTanggal(x.outDate):'',x.status,x.notes]);const head=['Nama','Nomor Kendaraan','Bagian/Divisi','Type','Model','Warna','IN','Tanggal IN','OUT','Tanggal OUT','Status','Keterangan'];doc.autoTable({startY:23,head:[head],body:rows,theme:'grid',styles:{fontSize:6.5,cellPadding:1.5,overflow:'linebreak',valign:'top'},headStyles:{fillColor:[27,83,139],textColor:255},didParseCell:d=>{if(d.section==='body'){const t=String(d.row.raw?.[3]||'');const hex=(TYPE_COLORS[t]||'#E5E7EB').replace('#','');d.cell.styles.fillColor=[parseInt(hex.slice(0,2),16),parseInt(hex.slice(2,4),16),parseInt(hex.slice(4,6),16)]}}});const blob=doc.output('blob');downloadBlob(blob,'VACS_'+fileDateName(lastReport.reportLogDate||lastReport.reportDate)+'.pdf','application/pdf');toast('✅ PDF berhasil disiapkan.')}catch(e){toast('❌ PDF gagal: '+e.message)}}
 
 (function(){const ov=$('introOverlay'),btn=$('introContinueBtn'),vid=$('introVideo'),unmuteBtn=$('introUnmuteBtn'),hint=$('introHint');
-function enableContinue(){if(!btn)return;btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';if(hint)hint.textContent='Tekan tombol kapan saja untuk masuk ke aplikasi'}
+function enableContinue(){if(!btn)return;btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';if(hint){hint.textContent='Tekan tombol kapan saja untuk masuk ke aplikasi';hint.style.animation='none';hint.style.color='#b8c2d0';hint.style.fontSize='11px';hint.style.fontWeight='700';hint.style.textShadow='none'}}
 function enterApp(){if(!ov||btn.disabled)return;try{vid&&vid.pause()}catch(e){}ov.style.display='none';ov.remove()}
 if(vid){const p=vid.play();
 if(p&&p.then){p.then(()=>{if(!vid.muted)enableContinue()}).catch(()=>{vid.muted=true;vid.play().catch(()=>{});if(unmuteBtn)unmuteBtn.style.display='block'})}
