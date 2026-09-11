@@ -44,6 +44,12 @@ jobs:
           set -euo pipefail
           python3 tools/patch_stt_hardening.py
 
+      - name: Apply WebView launcher startup fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/patch_webview_launcher.py
+
       - name: Build assets from every root HTML module
         shell: bash
         run: |
