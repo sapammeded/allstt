@@ -1,8 +1,5 @@
 package com.sapammeded.allstt;
 
-import android.os.Bundle;
-import android.view.View;
-import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -17,29 +14,9 @@ import java.nio.charset.StandardCharsets;
 public class MainActivityGenius extends MainActivity {
     private WebView hvssWebView;
 
-    @Override protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        hvssWebView = findWebView(getWindow().getDecorView());
-        if (hvssWebView != null) {
-            hvssWebView.addJavascriptInterface(new CentralBridge(), "AndroidCentral");
-            // addJavascriptInterface becomes visible after the next document load.
-            // MainActivity has already started launcher.html in super.onCreate();
-            // load it once more after the bridge is registered so every module gets
-            // AndroidCentral from the first script execution.
-            hvssWebView.loadUrl("file:///android_asset/launcher.html");
-        }
-    }
-
-    private WebView findWebView(View v) {
-        if (v instanceof WebView) return (WebView) v;
-        if (v instanceof ViewGroup) {
-            ViewGroup g = (ViewGroup) v;
-            for (int i = 0; i < g.getChildCount(); i++) {
-                WebView w = findWebView(g.getChildAt(i));
-                if (w != null) return w;
-            }
-        }
-        return null;
+    @Override protected void onWebViewReady(WebView view) {
+        hvssWebView = view;
+        hvssWebView.addJavascriptInterface(new CentralBridge(), "AndroidCentral");
     }
 
     public class CentralBridge {
@@ -104,8 +81,6 @@ public class MainActivityGenius extends MainActivity {
                     URL next = new URL(new URL(current), location);
                     if (!allowedHost(next.getHost())) throw new Exception("Redirect CENTRAL menuju host tidak diizinkan");
                     current = next.toString();
-                    // Apps Script Content Service redirects after handling the request.
-                    // Preserve POST only for redirects that explicitly preserve the method.
                     if (code != 307 && code != 308) { currentMethod = "GET"; currentBody = null; }
                     continue;
                 }
