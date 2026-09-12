@@ -26,13 +26,22 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      # USER-FRIENDLY BUILD ENGINE: normalize uploaded HTML modules before
+      # anything is copied into the APK. Case-only duplicates are removed in
+      # the temporary CI workspace, never from the user's repository history.
+      - name: Normalize uploaded HTML modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/normalize_html_modules.py
+
       - name: Apply HVSS native CENTRAL transport patch
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/patch_hvss_native.py
 
-      - name: Apply Android WebView JavaScript dialog patch
+      - name: Apply Android WebView JavaScript dialog and Java safety patch
         shell: bash
         run: |
           set -euo pipefail
@@ -44,7 +53,7 @@ jobs:
           set -euo pipefail
           python3 tools/patch_stt_hardening.py
 
-      - name: Build assets from every root HTML module
+      - name: Build assets from uploaded HTML modules
         shell: bash
         run: |
           set -euo pipefail
@@ -56,11 +65,24 @@ jobs:
           test "$count" -ge 2
           find app/src/main/assets -maxdepth 1 -type f -name '*.html' -printf '%f\n' | sort
 
+      - name: Preflight Java compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:compileDebugJavaWithJavac
+
       - name: Build APK from current repository
-        run: gradle --no-daemon :app:assembleDebug
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug
 
       - name: Verify APK
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          unzip -t app/build/outputs/apk/debug/app-debug.apk >/dev/null
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
