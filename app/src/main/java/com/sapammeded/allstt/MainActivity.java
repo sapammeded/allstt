@@ -341,7 +341,7 @@ public class MainActivity extends Activity {
 
     public class AndroidBridge {
         @JavascriptInterface public void saveBase64File(String name, String mime, String base64) { runOnUiThread(() -> MainActivity.this.saveBase64File(name, mime, base64)); }
-        @JavascriptInterface public void saveBlobUrl(String url, String name) { runOnUiThread(() -> webView.evaluateJavascript("(async()=>{try{const r=await fetch("+org.json.JSONObject.quote(url)+");const b=await r.blob();const fr=new FileReader();fr.onload=()=>Android.saveBase64File("+org.json.JSONObject.quote(name)+", "+org.json.JSONObject.quote(b.type||'application/octet-stream')+", fr.result.split(',')[1]);fr.readAsDataURL(b);}catch(e){Android.downloadError(String(e));}})();", null)); }
+        @JavascriptInterface public void saveBlobUrl(String url, String name) { runOnUiThread(() -> webView.evaluateJavascript("(async()=>{try{const r=await fetch("+org.json.JSONObject.quote(url)+");const b=await r.blob();const fr=new FileReader();fr.onload=()=>Android.saveBase64File("+org.json.JSONObject.quote(name)+",(b.type||'application/octet-stream'),fr.result.split(',')[1]);fr.readAsDataURL(b);}catch(e){Android.downloadError(String(e));}})();", null)); }
         @JavascriptInterface public void downloadError(String message) { runOnUiThread(() -> Toast.makeText(MainActivity.this, message == null ? "Download gagal" : message, Toast.LENGTH_LONG).show()); }
     }
 
