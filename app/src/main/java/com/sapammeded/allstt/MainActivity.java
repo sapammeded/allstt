@@ -273,7 +273,10 @@ public class MainActivity extends Activity {
                     while ((n = input.read(buf)) != -1) out.write(buf, 0, n);
                 }
                 byte[] bytes = out.toByteArray();
-                runOnUiThread(() -> openSavePicker(bytes, filename, resolvedMime));
+                final byte[] finalBytes = bytes;
+                final String finalFilename = filename;
+                final String finalResolvedMime = resolvedMime;
+                runOnUiThread(() -> openSavePicker(finalBytes, finalFilename, finalResolvedMime));
             } catch (Exception e) {
                 final String msg = e.getMessage() == null ? "Gagal mengunduh file" : e.getMessage();
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Download gagal: " + msg, Toast.LENGTH_LONG).show());
