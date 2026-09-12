@@ -47,6 +47,12 @@ jobs:
           set -euo pipefail
           python3 tools/patch_android_js_dialogs.py
 
+      - name: Repair generated Java bridge syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/patch_java_syntax_safety.py
+
       - name: Apply STT Finding Notes hardening
         shell: bash
         run: |
